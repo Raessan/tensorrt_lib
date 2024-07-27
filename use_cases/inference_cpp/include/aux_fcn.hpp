@@ -4,6 +4,7 @@
 #include <vector>
 #include <string>
 
+// Read data from file and store the result in std::vector<std::vector<float>>
 std::vector<std::vector<float>>  read_file(const std::string& filename) {
     std::vector<std::vector<float>> result;
     std::ifstream infile(filename);

@@ -7,7 +7,7 @@ import time
 
 engine_path = os.path.abspath(os.path.join("..", "..", "tensorrt_python" ))
 sys.path.insert(0, engine_path)
-from engine import Engine, Options
+from tensorrt_engine import TensorRTEngine, Options
 
 # PARAMETERS
 # Number of inferences for warmup
@@ -43,7 +43,7 @@ if __name__ == "__main__":
     trt_options.out_file_path = path_engine_save
 
     # Create the engine, build and load the network
-    engine = Engine(trt_options)
+    engine = TensorRTEngine(trt_options)
     engine.build(path_model_onnx)
     engine.loadNetwork()
 

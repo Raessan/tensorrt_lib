@@ -4,8 +4,7 @@
 #include <iostream>
 #include <random>
 #include <iterator>
-// #include <opencv2/cudaimgproc.hpp>
-#include "tensorrt_cpp_api/engine.h"
+#include "tensorrt_cpp_lib/tensorrt_engine.h"
 #include "NvOnnxParser.h"
 
 using namespace nvinfer1;
@@ -30,11 +29,11 @@ void Logger::log(Severity severity, const char *msg) noexcept {
 }
 
 // Constructor to store options
-Engine::Engine(const Options &options)
+TensorRTEngine::TensorRTEngine(const Options &options)
     : m_options(options) {}
 
 // Build the engine from ONNX model path
-bool Engine::build(std::string onnxModelPath) {
+bool TensorRTEngine::build(std::string onnxModelPath) {
 
     // Only regenerate the engine file if it has not already been generated for the specified options
     m_engineName = serializeEngineOptions(m_options, onnxModelPath);
@@ -194,7 +193,7 @@ bool Engine::build(std::string onnxModelPath) {
     return true;
 }
 
-Engine::~Engine() {
+TensorRTEngine::~TensorRTEngine() {
     // Free the GPU memory
     for (auto & buffer : m_buffers) {
         checkCudaErrorCode(cudaFree(buffer));
@@ -203,7 +202,7 @@ Engine::~Engine() {
     m_buffers.clear();
 }
 
-bool Engine::loadNetwork() {
+bool TensorRTEngine::loadNetwork() {
     // Set the device index
     auto ret = cudaSetDevice(m_options.deviceIndex);
     if (ret != 0) {
@@ -305,7 +304,7 @@ bool Engine::loadNetwork() {
 }
 
 // Run inference with the input and output with dims: [n_inputs/n_outputs, batch_size, input_dims/output_dims]. input_dims is the product of all remaining dims of input. Example: if the input is an image, input_dims = C*H*W. Same for output_dim
-bool Engine::runInference(const std::vector<std::vector<std::vector<float>>> &inputs, std::vector<std::vector<std::vector<float>>>& outputs) {
+bool TensorRTEngine::runInference(const std::vector<std::vector<std::vector<float>>> &inputs, std::vector<std::vector<std::vector<float>>>& outputs) {
 
     // First we do some error checking
     if (inputs.empty() || inputs[0].empty()) {
@@ -432,7 +431,7 @@ bool Engine::runInference(const std::vector<std::vector<std::vector<float>>> &in
 }
 
 // Runs inference considering that the input is stored in a pointer, which can be in CPU (from_device=false) or GPU (from_device=true), and the output is general [n_outputs, batch_size, output_dims]
-bool Engine::runInference(const float *inputs, std::vector<std::vector<std::vector<float>>>& outputs, int batch_size, bool from_device) {
+bool TensorRTEngine::runInference(const float *inputs, std::vector<std::vector<std::vector<float>>>& outputs, int batch_size, bool from_device) {
     
     // Create the cuda stream that will be used for inference
     cudaStream_t inferenceCudaStream;
@@ -529,7 +528,7 @@ bool Engine::runInference(const float *inputs, std::vector<std::vector<std::vect
 }
 
 // This function converts the engine options into a string
-std::string Engine::serializeEngineOptions(const Options &options, const std::string& onnxModelPath) {
+std::string TensorRTEngine::serializeEngineOptions(const Options &options, const std::string& onnxModelPath) {
     
     // If the path doesn't end with a /, we add it
     const auto filenamePos = onnxModelPath.find_last_of('/') + 1;
@@ -567,7 +566,7 @@ std::string Engine::serializeEngineOptions(const Options &options, const std::st
 }
 
 // Gets the device names
-void Engine::getDeviceNames(std::vector<std::string>& deviceNames) {
+void TensorRTEngine::getDeviceNames(std::vector<std::string>& deviceNames) {
     int numGPUs;
     cudaGetDeviceCount(&numGPUs);
 
@@ -581,7 +580,7 @@ void Engine::getDeviceNames(std::vector<std::string>& deviceNames) {
 
 // Utility method for transforming triple nested output array into 2D array
 // Should be used when there is just one output, but the batch_size may be >1
-void Engine::transformOutput(std::vector<std::vector<std::vector<float>>>& input, std::vector<std::vector<float>>& output) {
+void TensorRTEngine::transformOutput(std::vector<std::vector<std::vector<float>>>& input, std::vector<std::vector<float>>& output) {
     if (input.size() != 1) {
         throw std::logic_error("The feature vector has incorrect dimensions!");
     }
@@ -591,7 +590,7 @@ void Engine::transformOutput(std::vector<std::vector<std::vector<float>>>& input
 
 // Utility method for transforming triple nested output array into single array
 // Should be used when the output batch size is 1, and there is only a single output feature vector
-void Engine::transformOutput(std::vector<std::vector<std::vector<float>>>& input, std::vector<float>& output) {
+void TensorRTEngine::transformOutput(std::vector<std::vector<std::vector<float>>>& input, std::vector<float>& output) {
     if (input.size() != 1 || input[0].size() != 1) {
         throw std::logic_error("The feature vector has incorrect dimensions!");
     }

@@ -7,7 +7,7 @@
 #include <cassert>
 #include <cstring>
 
-#include "tensorrt_cpp_api/engine.h"
+#include "tensorrt_cpp_lib/tensorrt_engine.h"
 
 /** 
  * @brief Class that creates a NN handler with TensorRT to build and run inference with an ONNX model, and to keep information about inputs and outputs. This class assumes that the batch size is always 1
@@ -185,7 +185,7 @@ class NNHandler{
         /** \brief Auxiliar input vector */
         std::vector<std::vector<std::vector<float>>> auxiliar_input;
         /** \brief Engine of the NN */
-        std::shared_ptr<Engine> engine;
+        std::shared_ptr<TensorRTEngine> engine;
 
 };
 

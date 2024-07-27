@@ -1,5 +1,5 @@
-#ifndef ENGINE_HPP_
-#define ENGINE_HPP_
+#ifndef TENSORRT_ENGINE_HPP_
+#define TENSORRT_ENGINE_HPP_
 
 
 #include <fstream>
@@ -73,10 +73,10 @@ class Logger : public nvinfer1::ILogger {
     void log (Severity severity, const char* msg) noexcept override;
 };
 
-class Engine {
+class TensorRTEngine {
 public:
-    Engine(const Options& options);
-    ~Engine();
+    TensorRTEngine(const Options& options);
+    ~TensorRTEngine();
     // Build the network fron ONNX path
     bool build(std::string onnxModelPath);
     // Load and prepare the network for inference
@@ -123,4 +123,4 @@ private:
     std::string m_engineName;
 };
 
-#endif // ENGINE_HPP_
+#endif // TENSORRT_HPP_

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(tensorrt_cpp_api)
+project(tensorrt_cpp_lib)
 
 # Use ccache to speed up rebuilds
 include(cmake/ccache.cmake)
@@ -25,12 +25,12 @@ set(CUDA_TOOLKIT_ROOT_DIR /usr/local/cuda)
 # Include "include" directory
 #include_directories(include)
 
-# We require CUDA, OpenCV, and TensorRT
+# We require CUDA and TensorRT
 find_package(TensorRT REQUIRED)
 find_package(CUDA REQUIRED)
 
-add_library(tensorrt_cpp_api SHARED
-        src/engine.cpp)
+add_library(tensorrt_cpp_lib SHARED
+        src/tensorrt_engine.cpp)
 
-target_include_directories(tensorrt_cpp_api PUBLIC ${CUDA_INCLUDE_DIRS} ${TensorRT_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(tensorrt_cpp_api PUBLIC ${CUDA_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} ${TensorRT_LIBRARIES})
+target_include_directories(tensorrt_cpp_lib PUBLIC ${CUDA_INCLUDE_DIRS} ${TensorRT_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(tensorrt_cpp_lib PUBLIC ${CUDA_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} ${TensorRT_LIBRARIES})

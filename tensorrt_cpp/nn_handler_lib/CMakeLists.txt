@@ -8,8 +8,6 @@ set(CMAKE_CXX_STANDARD 14)
 # Including the "release" feature optimizes the performance in production
 set(CMAKE_BUILD_TYPE "Release")
 
-# # To compile the library of TensorRT
-# add_subdirectory(../tensorrt_cpp_api)
 
 # find dependencies
 find_package(Threads REQUIRED)
@@ -23,4 +21,4 @@ add_library(nn_handler_lib SHARED
 )
 
 target_include_directories(nn_handler_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(nn_handler_lib PUBLIC tensorrt_cpp_api)
+target_link_libraries(nn_handler_lib PUBLIC tensorrt_cpp_lib)

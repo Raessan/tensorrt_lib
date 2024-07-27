@@ -7,7 +7,7 @@ import time
 
 engine_path = os.path.abspath(os.path.join("..", "..", "tensorrt_python" ))
 sys.path.insert(0, engine_path)
-from engine import Engine, Options
+from tensorrt_engine import TensorRTEngine, Options
 
 # PARAMETERS
 # Number of inferences for warmup
@@ -43,7 +43,7 @@ if __name__ == "__main__":
     trt_options.out_file_path = path_engine_save
 
     # Create the engine, build and load the network
-    engine = Engine(trt_options)
+    engine = TensorRTEngine(trt_options)
     engine.build(path_model_onnx)
     engine.loadNetwork()
 
@@ -79,6 +79,8 @@ if __name__ == "__main__":
     for i in range(n_inferences):
         output_pred = engine.do_inference_v2(inputs)
     end_time = time.time()
+    avg_inference_time = (end_time - start_time)*1000.0 / n_inferences
+    print(f"Average inference time: {avg_inference_time:.6f} miliseconds")
 
     # Show results
     print("Ground truth output:\n", output_gt)

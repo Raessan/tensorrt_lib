@@ -8,7 +8,7 @@ set(CMAKE_CXX_STANDARD 14)
 include_directories(include)
 
 # To compile the library of TensorRT
-add_subdirectory(../../tensorrt_cpp/tensorrt_cpp_api ${CMAKE_BINARY_DIR}/tensorrt_cpp_api)
+add_subdirectory(../../tensorrt_cpp/tensorrt_cpp_lib ${CMAKE_BINARY_DIR}/tensorrt_cpp_lib)
 add_subdirectory(../../tensorrt_cpp/nn_handler_lib ${CMAKE_BINARY_DIR}/nn_handler_lib)
 
 # To compile the main program

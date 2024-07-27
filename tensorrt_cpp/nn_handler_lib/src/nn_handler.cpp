@@ -22,7 +22,7 @@ NNHandler::NNHandler(std::string file_path_onnx, std::string file_path_destinati
     // Device index (number of GPU)
     options.deviceIndex = device_index;
     // Initialize the engine
-    engine = std::make_shared<Engine>(options);
+    engine = std::make_shared<TensorRTEngine>(options);
     
 
     // Build the onnx model into a TensorRT engine file.

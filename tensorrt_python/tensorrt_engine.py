@@ -85,7 +85,7 @@ class HostDeviceMem:
         self.memory_released = True
         
 # Main engine class
-class Engine:
+class TensorRTEngine:
 
     # Constructor that initializes variables
     def __init__(self, options):
