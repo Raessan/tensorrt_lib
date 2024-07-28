@@ -36,7 +36,7 @@ In our library, we can do both things. If we choose a dynamic batch size to work
 Although the `tensorrt_cpp_lib` can be accessed directly, I created a handler, called `nn_handler_lib` to better interface with the user. Everything of the `NNHandler` is well explained in the `nn_handler.hpp` file. Some guidelines are provided here. First, the constructor accepts several parameters:
 
 - `file_path_onnx` is the path to the ONNX file
-- `file_path_destination` is the path to the ONNX file
+- `file_path_destination` is the path where the engine will be stored
 - `precision` is the precision of the weights. By now, only float16 and float32 are accepted
 - `dla_core`: if the device has DLA (such as NVidia ORIN), you can set this variable to a value different from -1. Otherwise, leave it as -1
 - `device_index`: if you device has more than one GPU, you can choose which to use. If only one GPU, leave this value as 0
