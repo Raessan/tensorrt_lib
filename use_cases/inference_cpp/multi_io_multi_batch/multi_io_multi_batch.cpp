@@ -39,34 +39,27 @@ int main(){
     // Print the data of the handler
     nn_handler.print_data();
 
-    // Load input and output ground truth. We will load all the batches but will only use the first one
-    std::vector<std::vector<float>> input1 = read_file(input1_path);
-    std::vector<std::vector<float>> input2 = read_file(input2_path);
-    std::vector<std::vector<float>> input3 = read_file(input3_path);
-    std::vector<std::vector<float>> output1_gt = read_file(output1_path);
-    std::vector<std::vector<float>> output2_gt = read_file(output2_path);
+    // Load input and output ground truth.
+    std::vector<std::vector<float>> input1 = read_file(input1_path, batch_size);
+    std::vector<std::vector<float>> input2 = read_file(input2_path, batch_size);
+    std::vector<std::vector<float>> input3 = read_file(input3_path, batch_size);
+    std::vector<std::vector<float>> output1_gt = read_file(output1_path, batch_size);
+    std::vector<std::vector<float>> output2_gt = read_file(output2_path, batch_size);
 
-    // This is the vector that will have the first batch of each input
+    // This is the vector that will contain the info of all inputs
     std::vector<std::vector<std::vector<float>>> input;
     // We have to resize it to contain all the data
     input.resize(3);
     for (int i=0; i<3; i++){
         input[i].resize(batch_size);
     }
+    // Now, fill the data
     for (int i=0; i<batch_size; i++){
-        input[0][i].resize(input1[i].size());
-        std::copy(input1[i].begin(), input1[i].end(), input[0][i].begin());
+        input[0][i] = input1[i];
+        input[1][i] = input2[i];
+        input[2][i] = input3[i];
     }
-    for (int i=0; i<batch_size; i++){
-        input[1][i].resize(input2[i].size());
-        std::copy(input2[i].begin(), input2[i].end(), input[1][i].begin());
-    }
-    for (int i=0; i<batch_size; i++){
-        input[2][i].resize(input3[i].size());
-        std::copy(input3[i].begin(), input3[i].end(), input[2][i].begin());
-    }
-
-
+    
     // Predicted output
     std::vector<std::vector<std::vector<float>>> output_pred;
     

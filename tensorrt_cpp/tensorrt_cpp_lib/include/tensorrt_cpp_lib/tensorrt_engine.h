@@ -83,8 +83,9 @@ public:
     bool loadNetwork();
     // Run inference with the input and output with dims: [n_inputs/n_outputs, batch_size, input_dims/output_dims]. input_dims is the product of all remaining dims of input. Example: if the input is an image, input_dims = C*H*W. Same for output_dim
     bool runInference(const std::vector<std::vector<std::vector<float>>> &inputs, std::vector<std::vector<std::vector<float>>>& outputs);
-    // Runs inference considering that the input is stored in a pointer, which can be in CPU (from_device=false) or GPU (from_device=true), and the output is general [n_outputs, batch_size, output_dims]
-    bool runInference(const float *inputs, std::vector<std::vector<std::vector<float>>>& outputs, int batch_size=1, bool from_device=false);
+    // Runs inference considering that the input is stored in a doublevector of pointers, which can be in CPU (from_device=false) or GPU (from_device=true), and the output is general [n_outputs, batch_size, output_dims]
+    // The first dimension of the inputs is the number of inputs, the second is the batch size, and pointer has a valid range equal to the dimensionality of the input
+    bool runInference(const std::vector<std::vector<float *>> &inputs, std::vector<std::vector<std::vector<float>>>& outputs, bool from_device);
     
     // bool runInference(const float * input, float * output, bool from_device=false);
 
@@ -99,6 +100,45 @@ public:
     // Utility method for transforming triple nested output array into single array
     // Should be used when the output batch size is 1, and there is only a single output feature vector
     static void transformOutput(std::vector<std::vector<std::vector<float>>>& input, std::vector<float>& output);
+
+    // Function that checks the input, accepting both std::vector<std::vector<std::vector<float>>> and std::vector<std::vector< float *>> for both versions of runInference
+    template<typename T>
+    bool check_input(std::vector<std::vector<T>> inputs){
+        // First we do some error checking
+        if (inputs.empty() || inputs[0].empty()) {
+            std::cout << "===== Error =====" << std::endl;
+            std::cout << "Provided input vector is empty!" << std::endl;
+            return false;
+        }
+
+        // Ensure we have the corect number of outputs
+        const auto numInputs = m_inputDims.size();
+        if (inputs.size() != numInputs) {
+            std::cout << "===== Error =====" << std::endl;
+            std::cout << "Incorrect number of inputs provided!" << std::endl;
+            return false;
+        }
+
+        // Ensure the batch size does not exceed the max
+        if (inputs[0].size() > static_cast<size_t>(m_options.maxBatchSize)) {
+            std::cout << "===== Error =====" << std::endl;
+            std::cout << "The batch size is larger than the model expects!" << std::endl;
+            std::cout << "Model max batch size: " << m_options.maxBatchSize << std::endl;
+            std::cout << "Batch size provided to call to runInference: " << inputs[0].size() << std::endl;
+            return false;
+        }
+
+        const auto batchSize = static_cast<int32_t>(inputs[0].size());
+        // Make sure the same batch size was provided for all inputs
+        for (size_t i = 1; i < inputs.size(); ++i) {
+            if (inputs[i].size() != static_cast<size_t>(batchSize)) {
+                std::cout << "===== Error =====" << std::endl;
+                std::cout << "The batch size needs to be constant for all inputs!" << std::endl;
+                return false;
+            }
+        }
+        return true;
+    }
     
 private:
     // Converts the engine options into a string

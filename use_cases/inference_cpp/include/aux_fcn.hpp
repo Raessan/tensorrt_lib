@@ -5,28 +5,35 @@
 #include <string>
 
 // Read data from file and store the result in std::vector<std::vector<float>>
-std::vector<std::vector<float>>  read_file(const std::string& filename) {
+// If num_lines <= 0, the whole document is read.
+std::vector<std::vector<float>> read_file(const std::string& filename, int num_lines=0) {
     std::vector<std::vector<float>> result;
     std::ifstream infile(filename);
+    if (!infile.is_open()) {
+        throw std::runtime_error("Failed to open file.");
+    }
+
     std::string line;
+    int lines_read = 0;
 
     while (std::getline(infile, line)) {
+        if (num_lines > 0 && lines_read >= num_lines) {
+            break; // Stop reading if we have read the specified number of lines
+        }
+
         std::stringstream ss(line);
         std::vector<float> numbers;
         float number;
 
         while (ss >> number) {
             numbers.push_back(number);
-            if (ss.peek() == ',') ss.ignore();
+            if (ss.peek() == ',') {
+                ss.ignore();
+            }
         }
 
-        std::vector<float> partial_result(numbers.size());
-        for (size_t i = 0; i < numbers.size(); ++i) {
-            partial_result[i] = numbers[i];
-        }
-
-        // Add the float array to the result vector
-        result.push_back(partial_result);
+        result.push_back(numbers);
+        ++lines_read;
     }
 
     return result;

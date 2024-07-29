@@ -56,7 +56,13 @@ The output follows the same pattern. However, the method is overloaded such that
 - `std::vector<std::vector<float>>` indicates that there is a single input or output, so the first dimension now is the batch size, while the second dimension is the flattened data dimension.
 - `std::vector<float>` indicates that there is a single input or output, and also the batch size is 1. So, the dimension of the vector is directly the flattened dimension of the data
 
-Finally, we also allow to pass a raw pointer as input. This can be handy if the pointer is already in the GPU (CUDA). In fact, if you use the raw pointer you also have to specify in the `run_inference` function a boolean o declare if the pointer is in the CPU or the GPU (see `nn_handler.hpp` for more details).
+Finally, we can also pass input information as a (vector of) raw pointer. This can be handy if the pointers are already in the GPU (CUDA). In fact, if you use the input pointer you also have to specify in the `run_inference` function a boolean o declare if the pointer is in the CPU or the GPU (see `nn_handler.hpp` for more details). The available formats for the input are:
+
+- `std::vector<std::vector<float *>>` is the most general case for more than one input. The outer vector has size equal to the number of inputs, the inner vector has size equal to the batch size, while the float * points to the data flattened as before (so if the image is 3x100x100, the float * points to the first element, where all contiguously stored until the 30000th element).
+- `std::vector<float *>` indicates that there is a single input, and the size of the vector corresponds to the batch size. Again the pointer points to an instance of data of that batch.
+- `float *` indicates that there is a single input, and also the batch size is 1. So, the pointer directly points to the single instance of data.
+
+Note that, to use this functionality, all the pointers have to be located in the same device (either the GPU or the CPU). The outputs will not be provided as pointers, but using vectors as before.
 
 In case of dealing with images, it is important to comment the `blobFromImage` function in the `dnn` package of OpenCV, since it adapts an OpenCV `cv::Mat` image to the format expected by NN.
 

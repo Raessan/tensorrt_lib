@@ -36,13 +36,13 @@ int main(){
     // Print the data of the handler
     nn_handler.print_data();
 
-    // Load input and output ground truth. We will load all the batches but will only use the first one
-    std::vector<std::vector<float>> input_all_batches = read_file(input_path);
-    std::vector<std::vector<float>> output_gt_all_batches = read_file(output_path);
+    // Load input and output ground truth.
+    std::vector<std::vector<float>> input_file = read_file(input_path, batch_size);
+    std::vector<std::vector<float>> output_gt_file = read_file(output_path, batch_size);
 
-    // We only select the first batch for this experiment
-    std::vector<float> input = input_all_batches[0];
-    std::vector<float> output_gt = output_gt_all_batches[0];
+    // Since the outer vector is size 1 (the batch size), we can take the inner vector (although the handler can also use the std::vector<std::vector<float>>)
+    std::vector<float> input = input_file[0];
+    std::vector<float> output_gt = output_gt_file[0];
 
     // Predicted output
     std::vector<float> output_pred;

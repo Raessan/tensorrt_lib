@@ -32,9 +32,6 @@ const std::string input3_path = "../../test_data/multi_io/x3.txt";
 const std::string output1_path = "../../test_data/multi_io/y1.txt";
 const std::string output2_path = "../../test_data/multi_io/y2.txt";
 
-/** CUDA pointer */
-float * d_input;
-
 int main(){
 
     // Create variable for inference
@@ -42,52 +39,31 @@ int main(){
     // Print the data of the handler
     nn_handler.print_data();
 
-    // Load input and output ground truth. We will load all the batches but will only use the first one
-    std::vector<std::vector<float>> input1 = read_file(input1_path);
-    std::vector<std::vector<float>> input2 = read_file(input2_path);
-    std::vector<std::vector<float>> input3 = read_file(input3_path);
-    std::vector<std::vector<float>> output1_gt = read_file(output1_path);
-    std::vector<std::vector<float>> output2_gt = read_file(output2_path);
+    // Load input and output ground truth.
+    std::vector<std::vector<float>> input1 = read_file(input1_path, batch_size);
+    std::vector<std::vector<float>> input2 = read_file(input2_path, batch_size);
+    std::vector<std::vector<float>> input3 = read_file(input3_path, batch_size);
+    std::vector<std::vector<float>> output1_gt = read_file(output1_path, batch_size);
+    std::vector<std::vector<float>> output2_gt = read_file(output2_path, batch_size);
 
-    // This is the vector that will have the first batch of each input
-    std::vector<std::vector<std::vector<float>>> input;
+    // This is the vector that will contain the info of all inputs
+    std::vector<std::vector<float *>> d_input;
+
     // We have to resize it to contain all the data
-    input.resize(3);
+    d_input.resize(3);
     for (int i=0; i<3; i++){
-        input[i].resize(batch_size);
+        d_input[i].resize(batch_size);
     }
+    // Now, we allocate data on the GPU and fill there the data
     for (int i=0; i<batch_size; i++){
-        input[0][i].resize(input1[i].size());
-        std::copy(input1[i].begin(), input1[i].end(), input[0][i].begin());
-    }
-    for (int i=0; i<batch_size; i++){
-        input[1][i].resize(input2[i].size());
-        std::copy(input2[i].begin(), input2[i].end(), input[1][i].begin());
-    }
-    for (int i=0; i<batch_size; i++){
-        input[2][i].resize(input3[i].size());
-        std::copy(input3[i].begin(), input3[i].end(), input[2][i].begin());
-    }
-
-    // We will pass the data to a CUDA pointer
-    int n_elem = 0;
-    for (int i=0; i<input.size(); i++){
-        for (int j=0; j<input[i].size(); j++){
-            n_elem += input[i][j].size();
-        }
-    }
-
-    //Now, we copy the data to the cuda pointer
-    checkCuda(cudaMalloc((void**)&d_input, sizeof(float)*n_elem));
-    int current_pos_pointer = 0;
-    for (int i=0; i<input.size(); i++){
-        for (int j=0; j<input[i].size(); j++){
-            checkCuda(cudaMemcpy(&d_input[current_pos_pointer], input[i][j].data(), sizeof(float)*input[i][j].size(),cudaMemcpyHostToDevice));
-            current_pos_pointer += input[i][j].size();
-        }
+        checkCuda(cudaMalloc((void**)&d_input[0][i], sizeof(float)*input1[i].size()));
+        checkCuda(cudaMalloc((void**)&d_input[1][i], sizeof(float)*input2[i].size()));
+        checkCuda(cudaMalloc((void**)&d_input[2][i], sizeof(float)*input3[i].size()));
+        checkCuda(cudaMemcpy(d_input[0][i], input1[i].data(), sizeof(float)*input1[i].size(),cudaMemcpyHostToDevice));
+        checkCuda(cudaMemcpy(d_input[1][i], input2[i].data(), sizeof(float)*input2[i].size(),cudaMemcpyHostToDevice));
+        checkCuda(cudaMemcpy(d_input[2][i], input3[i].data(), sizeof(float)*input3[i].size(),cudaMemcpyHostToDevice));
     }
     
-
 
     // Predicted output
     std::vector<std::vector<std::vector<float>>> output_pred;
@@ -145,7 +121,12 @@ int main(){
     std::cout << "Mean square error output 1: " << calculate_mae(output1_gt, output_pred[0], 10) << std::endl;
     std::cout << "Mean square error output 2: " << calculate_mae(output2_gt, output_pred[1], 5) << std::endl;
 
-    checkCuda(cudaFree(d_input));
+    // Free all the CUDA pointers
+    for (int i=0; i<d_input.size(); i++){
+        for (int j=0; j<d_input[0].size(); j++){
+            checkCuda(cudaFree(d_input[i][j]));
+        }
+    }
 
     return 0;
 }

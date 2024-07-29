@@ -46,18 +46,21 @@ int main(){
     std::vector<std::vector<float>> output1_gt_file = read_file(output1_path, batch_size);
     std::vector<std::vector<float>> output2_gt_file = read_file(output2_path, batch_size);
 
-    // This is the vector that will have the first batch of each input
-    std::vector<std::vector<std::vector<float>>> input;
+    // This is the vector that will have the first batch of each input on the GPU
+    std::vector<std::vector<float *>> d_input;
     // We have to resize it to contain all the data
-    input.resize(3);
+    d_input.resize(3);
     for (int i=0; i<3; i++){
-        input[i].resize(1);
+        d_input[i].resize(1);
     }
     
-    // Now copy the data from each input
-    input[0][0] = input1_file[0];
-    input[1][0] = input2_file[0];
-    input[2][0] = input3_file[0];
+    // Now, we allocate data on the GPU and fill there the data
+    checkCuda(cudaMalloc((void**)&d_input[0][0], sizeof(float)*input1_file[0].size()));
+    checkCuda(cudaMalloc((void**)&d_input[1][0], sizeof(float)*input2_file[0].size()));
+    checkCuda(cudaMalloc((void**)&d_input[2][0], sizeof(float)*input3_file[0].size()));
+    checkCuda(cudaMemcpy(d_input[0][0], input1_file[0].data(), sizeof(float)*input1_file[0].size(),cudaMemcpyHostToDevice));
+    checkCuda(cudaMemcpy(d_input[1][0], input2_file[0].data(), sizeof(float)*input2_file[0].size(),cudaMemcpyHostToDevice));
+    checkCuda(cudaMemcpy(d_input[2][0], input3_file[0].data(), sizeof(float)*input3_file[0].size(),cudaMemcpyHostToDevice));
     
     // We take the inner std::vector of the outputs
     std::vector<float> output1_gt = output1_gt_file[0];
@@ -68,14 +71,14 @@ int main(){
     
     // Perform WARMUP inference (only with the first batch)
     for (int i=0; i< n_inferences_warmup; i++){
-        nn_handler.run_inference(input, output_pred);
+        nn_handler.run_inference(d_input, output_pred, true);
     }
     
     // Get the current time before inference
     auto start = std::chrono::high_resolution_clock::now();
     // Measure time of inference
     for (int i=0; i<n_inferences; i++){
-        nn_handler.run_inference(input, output_pred);
+        nn_handler.run_inference(d_input, output_pred, true);
     }
     // Get the current time after inference
     auto end = std::chrono::high_resolution_clock::now();
@@ -106,6 +109,11 @@ int main(){
 
     std::cout << "Mean square error output 1: " << calculate_mae(output1_gt, output_pred[0][0], 10) << std::endl;
     std::cout << "Mean square error output 2: " << calculate_mae(output2_gt, output_pred[1][0], 5) << std::endl;
+
+    // Free all the CUDA pointers
+    for (int i=0; i<d_input.size(); i++){
+        checkCuda(cudaFree(d_input[i][0]));
+    }
 
     return 0;
 }

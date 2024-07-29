@@ -42,19 +42,28 @@ int main(){
     // Ground truth output
     std::vector<std::vector<float>> output_gt = read_file(output_path, batch_size);
 
+    // We create the input pointers to upload to the device. We only need one outer vector because the number of inputs is 1, so we only need the batch dimension
+    std::vector<float *> d_input(batch_size);
+    // Fill with the data from file
+    for (int i=0; i<batch_size; i++){
+        checkCuda(cudaMalloc((void**)&d_input[i], sizeof(float)*input[i].size()));
+        checkCuda(cudaMemcpy(d_input[i], input[i].data(), sizeof(float)*input[i].size(),cudaMemcpyHostToDevice));
+    }
+
     // Predicted output. Since the input is single, we can use std::vector<std::vector<float>>, where the first dimension is the batch size
     std::vector<std::vector<float>> output_pred;
 
-    // Perform WARMUP inference (only with the first batch)
+    // Perform WARMUP inference (only with the first batch) 
     for (int i=0; i< n_inferences_warmup; i++){
-        nn_handler.run_inference(input, output_pred);
+        nn_handler.run_inference(d_input, output_pred, true);
     }
     
     // Get the current time before inference
     auto start = std::chrono::high_resolution_clock::now();
     // Measure time of inference
     for (int i=0; i<n_inferences; i++){
-        nn_handler.run_inference(input, output_pred);
+        // Inference in GPU memory
+        nn_handler.run_inference(d_input, output_pred, true);
     }
     // Get the current time after inference
     auto end = std::chrono::high_resolution_clock::now();
@@ -81,6 +90,11 @@ int main(){
     }
 
     std::cout << "Mean square error: " << calculate_mae(output_gt, output_pred, 10) << std::endl;
+
+    // Free all the CUDA pointers
+    for (int i=0; i<d_input.size(); i++){
+        checkCuda(cudaFree(d_input[i]));
+    }
 
     return 0;
 }

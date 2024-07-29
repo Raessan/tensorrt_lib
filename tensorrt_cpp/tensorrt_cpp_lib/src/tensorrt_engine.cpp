@@ -306,39 +306,12 @@ bool TensorRTEngine::loadNetwork() {
 // Run inference with the input and output with dims: [n_inputs/n_outputs, batch_size, input_dims/output_dims]. input_dims is the product of all remaining dims of input. Example: if the input is an image, input_dims = C*H*W. Same for output_dim
 bool TensorRTEngine::runInference(const std::vector<std::vector<std::vector<float>>> &inputs, std::vector<std::vector<std::vector<float>>>& outputs) {
 
-    // First we do some error checking
-    if (inputs.empty() || inputs[0].empty()) {
-        std::cout << "===== Error =====" << std::endl;
-        std::cout << "Provided input vector is empty!" << std::endl;
-        return false;
-    }
+    // Check that the input is correct
+    if (check_input(inputs) == false) return false;
 
-    // Ensure we have the corect number of outputs
+    // Get number of inputs and batch size
     const auto numInputs = m_inputDims.size();
-    if (inputs.size() != numInputs) {
-        std::cout << "===== Error =====" << std::endl;
-        std::cout << "Incorrect number of inputs provided!" << std::endl;
-        return false;
-    }
-
-    // Ensure the batch size does not exceed the max
-    if (inputs[0].size() > static_cast<size_t>(m_options.maxBatchSize)) {
-        std::cout << "===== Error =====" << std::endl;
-        std::cout << "The batch size is larger than the model expects!" << std::endl;
-        std::cout << "Model max batch size: " << m_options.maxBatchSize << std::endl;
-        std::cout << "Batch size provided to call to runInference: " << inputs[0].size() << std::endl;
-        return false;
-    }
-
     const auto batchSize = static_cast<int32_t>(inputs[0].size());
-    // Make sure the same batch size was provided for all inputs
-    for (size_t i = 1; i < inputs.size(); ++i) {
-        if (inputs[i].size() != static_cast<size_t>(batchSize)) {
-            std::cout << "===== Error =====" << std::endl;
-            std::cout << "The batch size needs to be constant for all inputs!" << std::endl;
-            return false;
-        }
-    }
 
     // Create the cuda stream that will be used for inference
     cudaStream_t inferenceCudaStream;
@@ -353,9 +326,9 @@ bool TensorRTEngine::runInference(const std::vector<std::vector<std::vector<floa
         inputDims.nbDims = dims.nbDims;
         inputDims.d[0] = batchSize;
         int inputLenFloat = 1;
-        for (int i=1; i< dims.nbDims; i++){
-            inputDims.d[i] = dims.d[i];
-            inputLenFloat *= dims.d[i];
+        for (int j=1; j< dims.nbDims; j++){
+            inputDims.d[j] = dims.d[j];
+            inputLenFloat *= dims.d[j];
         }
 
         
@@ -364,18 +337,12 @@ bool TensorRTEngine::runInference(const std::vector<std::vector<std::vector<floa
             throw std::runtime_error("The expected dimension does not match with the input dimension!");
         }
 
-        // Get the data of each batch of the input
-        std::vector<float> batch_data;
-        batch_data.reserve(inputLenFloat*batchSize);
-
-        for (const auto& batch : batchInput){
-            batch_data.insert(batch_data.end(), batch.begin(), batch.end());
-        }
-
-        // Move data to the buffers in GPU
-        checkCudaErrorCode(cudaMemcpyAsync(m_buffers[i], batch_data.data(),
-                            batchSize * inputLenFloat * sizeof(float),
+        // Fill the buffers with the input
+        for (int j=0; j<batchSize; j++){
+            checkCudaErrorCode(cudaMemcpyAsync((char *)m_buffers[i] + j*inputLenFloat*sizeof(float), batchInput[j].data(),
+                            inputLenFloat * sizeof(float),
                             cudaMemcpyHostToDevice, inferenceCudaStream));
+        }
         
 
     }
@@ -430,53 +397,56 @@ bool TensorRTEngine::runInference(const std::vector<std::vector<std::vector<floa
     return true;
 }
 
-// Runs inference considering that the input is stored in a pointer, which can be in CPU (from_device=false) or GPU (from_device=true), and the output is general [n_outputs, batch_size, output_dims]
-bool TensorRTEngine::runInference(const float *inputs, std::vector<std::vector<std::vector<float>>>& outputs, int batch_size, bool from_device) {
+// Runs inference considering that the input is stored in a doublevector of pointers, which can be in CPU (from_device=false) or GPU (from_device=true), and the output is general [n_outputs, batch_size, output_dims]
+// The first dimension of the inputs is the number of inputs, the second is the batch size, and pointer has a valid range equal to the dimensionality of the input
+bool TensorRTEngine::runInference(const std::vector<std::vector<float *>> &inputs, std::vector<std::vector<std::vector<float>>>& outputs, bool from_device) {
+
+    // Check that the input is correct
+    if (check_input(inputs) == false) return false;
+
+    // Get number of inputs and batch size
+    const auto numInputs = m_inputDims.size();
+    const auto batchSize = static_cast<int32_t>(inputs[0].size());
     
     // Create the cuda stream that will be used for inference
     cudaStream_t inferenceCudaStream;
     checkCudaErrorCode(cudaStreamCreate(&inferenceCudaStream));
 
-    // Position of pointer to define address to move data
-    int pos_pointer = 0;
-
-    // Process each input
-    const auto numInputs = m_inputDims.size();
+    // Preprocess all the inputs
     for (size_t i = 0; i < numInputs; ++i) {
-        
+        const auto& batchInput = inputs[i];
         const auto& dims = m_inputDims[i];
 
         nvinfer1::Dims inputDims;
         inputDims.nbDims = dims.nbDims;
-        inputDims.d[0] = batch_size;
+        inputDims.d[0] = batchSize;
         int inputLenFloat = 1;
-        for (int i=1; i< dims.nbDims; i++){
-            inputDims.d[i] = dims.d[i];
-            inputLenFloat *= dims.d[i];
+        for (int j=1; j< dims.nbDims; j++){
+            inputDims.d[j] = dims.d[j];
+            inputLenFloat *= dims.d[j];
         }
+        m_context->setInputShape(m_IOTensorNames[i].c_str(), inputDims); // Define the batch size
 
-        bool success = m_context->setInputShape(m_IOTensorNames[i].c_str(), inputDims); // Define the batch size
-        if (!success) {
-            throw std::runtime_error("The expected dimension does not match with the input dimension!");
-        }
-
-        // Now we have two options, moving from GPU to GPU or from CPU to GPU
+        // Check if the provided data is on the GPU
         if (from_device){
-            checkCudaErrorCode(cudaMemcpyAsync(m_buffers[i], &inputs[pos_pointer],
-                                batch_size * inputLenFloat * sizeof(float),
+            
+            // Fill the buffers with the input from the device
+            for (int j=0; j<batchSize; j++){
+                checkCudaErrorCode(cudaMemcpyAsync((char *)m_buffers[i] + j*inputLenFloat*sizeof(float), batchInput[j],
+                                inputLenFloat * sizeof(float),
                                 cudaMemcpyDeviceToDevice, inferenceCudaStream));
+            }
         }
         else{
-            checkCudaErrorCode(cudaMemcpyAsync(m_buffers[i], &inputs[pos_pointer],
-                                batch_size * inputLenFloat * sizeof(float),
+            
+            // Fill the buffers with the input from the CPU
+            for (int j=0; j<batchSize; j++){
+                checkCudaErrorCode(cudaMemcpyAsync((char *)m_buffers[i] + j*inputLenFloat*sizeof(float), batchInput[j],
+                                inputLenFloat * sizeof(float),
                                 cudaMemcpyHostToDevice, inferenceCudaStream));
+            }
         }
-
-        // Update the position of the pointer to define address
-        pos_pointer += batch_size*inputLenFloat;
-
     }
-
 
     // Ensure all dynamic bindings have been defined.
     if (!m_context->allInputDimensionsSpecified()) {
@@ -497,7 +467,7 @@ bool TensorRTEngine::runInference(const float *inputs, std::vector<std::vector<s
         return false;
     }
 
-    // Copy the outputs back to CPU
+   // Copy the outputs back to CPU
     outputs.clear();
 
     // Extract data per output and per batch
@@ -506,7 +476,7 @@ bool TensorRTEngine::runInference(const float *inputs, std::vector<std::vector<s
         std::vector<std::vector<float>> batchOutputs{};
         auto outputLenFloat = m_outputLengthsFloat[outputBinding - numInputs];
         
-        for (int batch = 0; batch < batch_size; ++batch) {
+        for (int batch = 0; batch < batchSize; ++batch) {
             // We start at index m_inputDims.size() to account for the inputs in our m_buffers
             std::vector<float> output;
             
@@ -523,7 +493,7 @@ bool TensorRTEngine::runInference(const float *inputs, std::vector<std::vector<s
     // Synchronize the cuda stream
     checkCudaErrorCode(cudaStreamSynchronize(inferenceCudaStream));
     checkCudaErrorCode(cudaStreamDestroy(inferenceCudaStream));
-    
+
     return true;
 }
 
