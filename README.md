@@ -97,6 +97,8 @@ The only difference is how to represent inputs and outputs. Both are lists, wher
 
 In our previous examples with two inputs, where the first has size 3x100x100, the second is 1x200x200 and the batch size is 1, the `inputs` list will be of size 2, where `inputs[0]` is a numpy array of size (1, 3, 100, 100) and the second numpy array is has size (1, 1, 200, 200) (where the first 1 is because of the batch size).
 
+This library does not include the CUDA support like C++ since the inputs and outputs are always numpy arrays, and it is more common to work with CUDA in C++.
+
 # USE CASES
 The `use_cases` folder is only for demonstration purposes but it is not needed to build your own apps. All the required code for TensorRT are in `tensorrt_cpp` and `tensorrt_python`.
 
