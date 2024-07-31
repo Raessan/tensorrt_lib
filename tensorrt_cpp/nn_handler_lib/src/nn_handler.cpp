@@ -70,14 +70,43 @@ NNHandler::NNHandler(std::string file_path_onnx, std::string file_path_destinati
         n_elems_out.push_back(n_elems);
         output_names.push_back(m_IOTensorNames[n_inputs+i]);
     }
+
+    // Allocate data for the input vector
+    auxiliar_input_vector.resize(n_inputs);
+    auxiliar_input_pointer.resize(n_inputs);
+    for (int i=0; i<n_inputs; i++){
+        auxiliar_input_vector[i].resize(batch_size);
+        auxiliar_input_pointer[i].resize(batch_size);
+    }
+
+    // Allocate data for the output pointers
+    auxiliar_output_pointer_cpu.resize(n_outputs);
+    auxiliar_output_pointer_gpu.resize(n_outputs);
+    for (int i=0; i<n_outputs; i++){
+        auxiliar_output_pointer_cpu[i].resize(batch_size);
+        auxiliar_output_pointer_gpu[i].resize(batch_size);
+        for (int j=0; j<batch_size; j++){
+            auxiliar_output_pointer_cpu[i][j] = new float[n_elems_out[i]];
+            Util::checkCudaErrorCode(cudaMalloc((void**)&auxiliar_output_pointer_gpu[i][j], sizeof(float)*n_elems_out[i]));
+        }
+    }
+    
     
 }
 
+NNHandler::~NNHandler(){
+    for (int i=0; i<n_outputs; i++){
+        for (int j=0; j<batch_size; j++){
+            delete[] auxiliar_output_pointer_cpu[i][j];
+            Util::checkCudaErrorCode(cudaFree(auxiliar_output_pointer_gpu[i][j]));
+        }
+    }
+}
 
 // Runs inference. Most general case, valid for any number of inputs and outputs
 void NNHandler::run_inference(const std::vector<std::vector<std::vector<float>>> &input, std::vector<std::vector<std::vector<float>>> &output){
     assert(input.size() == n_inputs && input[0].size() == batch_size);
-    auxiliar_output.clear();
+    auxiliar_output_vector.clear();
     bool succ = engine->runInference(input, output);
     if (!succ) {
         throw std::runtime_error("Unable to run inference.");
@@ -86,22 +115,19 @@ void NNHandler::run_inference(const std::vector<std::vector<std::vector<float>>>
 // Runs inference considering that the input is general, and the output has 1 variable
 void NNHandler::run_inference(const std::vector<std::vector<std::vector<float>>> &input, std::vector<std::vector<float>> &output){
     assert(input.size() == n_inputs && input[0].size() == batch_size && n_outputs==1);
-    run_inference(input, auxiliar_output);
-    engine->transformOutput(auxiliar_output, output);
+    run_inference(input, auxiliar_output_vector);
+    engine->transformOutput(auxiliar_output_vector, output);
 }
 // Runs inference considering that the input is general, and the output has 1 variable and 1 batch
 void NNHandler::run_inference(const std::vector<std::vector<std::vector<float>>> &input, std::vector<float> &output){
     assert(input.size() == n_inputs && input[0].size() == batch_size && n_outputs==1 && batch_size==1);
-    run_inference(input, auxiliar_output);
-    engine->transformOutput(auxiliar_output, output);
+    run_inference(input, auxiliar_output_vector);
+    engine->transformOutput(auxiliar_output_vector, output);
 }
 
 // Runs inference considering that the input has 1 variable, and the output is general
 void NNHandler::run_inference(const std::vector<std::vector<float>> &input, std::vector<std::vector<std::vector<float>>> &output){
     assert(n_inputs==1 && input.size() == batch_size);
-    auxiliar_input_vector.clear();
-    auxiliar_input_vector.resize(1);
-    auxiliar_input_vector[0].resize(batch_size);
     for (int i=0; i<batch_size; i++){
         auxiliar_input_vector[0][i] = input[i];
     }
@@ -110,47 +136,39 @@ void NNHandler::run_inference(const std::vector<std::vector<float>> &input, std:
 // Runs inference considering that the input has 1 variable, and the output has 1 variable
 void NNHandler::run_inference(const std::vector<std::vector<float>> &input, std::vector<std::vector<float>> &output){
     assert(n_inputs==1 && input.size() == batch_size && n_outputs==1);
-    run_inference(input, auxiliar_output);
-    engine->transformOutput(auxiliar_output, output);
+    run_inference(input, auxiliar_output_vector);
+    engine->transformOutput(auxiliar_output_vector, output);
 }
 // Runs inference considering that the input has 1 variable, and the output has 1 variable and 1 batch
 void NNHandler::run_inference(const std::vector<std::vector<float>> &input, std::vector<float> &output){
     assert(n_inputs==1 && input.size() == batch_size && n_outputs==1 && batch_size==1);
-    run_inference(input, auxiliar_output);
-    engine->transformOutput(auxiliar_output, output);
+    run_inference(input, auxiliar_output_vector);
+    engine->transformOutput(auxiliar_output_vector, output);
 }
 
 // Runs inference considering that the input has 1 variable and 1 batch, and the output is general
 void NNHandler::run_inference(const std::vector<float> &input, std::vector<std::vector<std::vector<float>>> &output){
     assert(n_inputs==1 && batch_size == 1);
-    auxiliar_input_vector.clear();
-    auxiliar_input_vector.resize(1);
-    auxiliar_input_vector[0].resize(1);
-    // auxiliar_input_vector[0][0].resize(input.size());
-    //std::copy(input.begin(), input.end(), auxiliar_input_vector[0][0].begin());
     auxiliar_input_vector[0][0] = input;
     run_inference(auxiliar_input_vector, output);
 }
 // Runs inference considering that the input has 1 variable and 1 batch, and the output has 1 variable
 void NNHandler::run_inference(const std::vector<float> &input, std::vector<std::vector<float>> &output){
     assert(n_inputs==1 && batch_size == 1 && n_outputs==1);
-    run_inference(input, auxiliar_output);
-    engine->transformOutput(auxiliar_output, output);
+    run_inference(input, auxiliar_output_vector);
+    engine->transformOutput(auxiliar_output_vector, output);
 }
 // Runs inference considering that the input has 1 variable and 1 batch, and the output has 1 variable and 1 batch
 void NNHandler::run_inference(const std::vector<float> &input, std::vector<float> &output){
     assert(n_inputs==1 && n_outputs==1 && batch_size==1);
-    run_inference(input, auxiliar_output);
-    engine->transformOutput(auxiliar_output, output);
+    run_inference(input, auxiliar_output_vector);
+    engine->transformOutput(auxiliar_output_vector, output);
 }
-
-
-
 
 // Runs inference considering that the input is general, which can be in CPU (from_device=false) or GPU (from_device=true), and the output is general
 void NNHandler::run_inference(const std::vector<std::vector<float *>> &input, std::vector<std::vector<std::vector<float>>> &output, bool from_device){
     assert(input.size() == n_inputs && input[0].size() == batch_size);
-    auxiliar_output.clear();
+    auxiliar_output_vector.clear();
     bool succ = engine->runInference(input, output, from_device);
     if (!succ) {
         throw std::runtime_error("Unable to run inference.");
@@ -159,22 +177,19 @@ void NNHandler::run_inference(const std::vector<std::vector<float *>> &input, st
 // Runs inference considering that the input is general, which can be in CPU (from_device=false) or GPU (from_device=true), and the output has 1 variable
 void NNHandler::run_inference(const std::vector<std::vector<float *>> &input, std::vector<std::vector<float>> &output, bool from_device){
     assert(input.size() == n_inputs && input[0].size() == batch_size && n_outputs==1);
-    run_inference(input, auxiliar_output, from_device);
-    engine->transformOutput(auxiliar_output, output);
+    run_inference(input, auxiliar_output_vector, from_device);
+    engine->transformOutput(auxiliar_output_vector, output);
 }
 // Runs inference considering that the input is general, which can be in CPU (from_device=false) or GPU (from_device=true), and the output has 1 variable and 1 batch
 void NNHandler::run_inference(const std::vector<std::vector<float *>> &input, std::vector<float> &output, bool from_device){
     assert(input.size() == n_inputs && input[0].size() == batch_size && n_outputs==1 && batch_size==1);
-    run_inference(input, auxiliar_output, from_device);
-    engine->transformOutput(auxiliar_output, output);
+    run_inference(input, auxiliar_output_vector, from_device);
+    engine->transformOutput(auxiliar_output_vector, output);
 }
 
 // Runs inference considering that the input has 1 variable, which can be in CPU (from_device=false) or GPU (from_device=true), and the output is general
 void NNHandler::run_inference(const std::vector<float *> &input, std::vector<std::vector<std::vector<float>>> &output, bool from_device){
     assert(n_inputs==1 && input.size() == batch_size);
-    auxiliar_input_pointer.clear();
-    auxiliar_input_pointer.resize(1);
-    auxiliar_input_pointer[0].resize(batch_size);
     for (int i=0; i< batch_size; i++){
         auxiliar_input_pointer[0][i] = const_cast<float *>(input[i]);
     }
@@ -183,41 +198,247 @@ void NNHandler::run_inference(const std::vector<float *> &input, std::vector<std
 // Runs inference considering that the input has 1 variable, which can be in CPU (from_device=false) or GPU (from_device=true), and the output has 1 variable
 void NNHandler::run_inference(const std::vector<float *> &input, std::vector<std::vector<float>> &output, bool from_device){
     assert(n_inputs==1 && input.size() == batch_size && n_outputs==1);
-    run_inference(input, auxiliar_output, from_device);
-    engine->transformOutput(auxiliar_output, output);
+    run_inference(input, auxiliar_output_vector, from_device);
+    engine->transformOutput(auxiliar_output_vector, output);
 }
 // Runs inference considering that the input has 1 variable, which can be in CPU (from_device=false) or GPU (from_device=true), and the output has 1 variable and 1 batch
 void NNHandler::run_inference(const std::vector<float *> &input, std::vector<float> &output, bool from_device){
     assert(n_inputs==1 && input.size() == batch_size && n_outputs==1 && batch_size==1);
-    run_inference(input, auxiliar_output, from_device);
-    engine->transformOutput(auxiliar_output, output);
+    run_inference(input, auxiliar_output_vector, from_device);
+    engine->transformOutput(auxiliar_output_vector, output);
 }
 
 // Runs inference considering that the input has 1 variable and 1 batch, which can be in CPU (from_device=false) or GPU (from_device=true), and the output is general
 void NNHandler::run_inference(const float * input, std::vector<std::vector<std::vector<float>>> &output, bool from_device){
     assert(n_inputs==1 && batch_size == 1);
-    auxiliar_input_pointer.clear();
-    auxiliar_input_pointer.resize(1);
-    auxiliar_input_pointer[0].resize(1);
     auxiliar_input_pointer[0][0] = const_cast<float *>(input);
     run_inference(auxiliar_input_pointer, output, from_device);
 }
 // Runs inference considering that the input has 1 variable and 1 batch, which can be in CPU (from_device=false) or GPU (from_device=true), and the output has 1 variable
 void NNHandler::run_inference(const float * input, std::vector<std::vector<float>> &output, bool from_device){
     assert(n_inputs==1 && batch_size == 1 && n_outputs==1);
-    run_inference(input, auxiliar_output, from_device);
-    engine->transformOutput(auxiliar_output, output);
+    run_inference(input, auxiliar_output_vector, from_device);
+    engine->transformOutput(auxiliar_output_vector, output);
 }
 // Runs inference considering that the input has 1 variable and 1 batch, which can be in CPU (from_device=false) or GPU (from_device=true), and the output has 1 variable and 1 batch
 void NNHandler::run_inference(const float * input, std::vector<float> &output, bool from_device){
     assert(n_inputs==1 && n_outputs==1 && batch_size==1);
-    run_inference(input, auxiliar_output, from_device);
-    engine->transformOutput(auxiliar_output, output);
+    run_inference(input, auxiliar_output_vector, from_device);
+    engine->transformOutput(auxiliar_output_vector, output);
 }
 
 
+// Runs inference considering that the input is general, which can be in CPU (from_device=false) or GPU (from_device=true), and the output is general, in the CPU (to_device=false) or the GPU (to_device=true)
+void NNHandler::run_inference(const std::vector<std::vector<float *>> &input, std::vector<std::vector<float *>> &output, bool from_device, bool to_device){
+    assert(input.size() == n_inputs && input[0].size() == batch_size);
+    if (to_device){
+        bool succ = engine->runInference(input, auxiliar_output_pointer_gpu, from_device, to_device);
+        if (!succ) {
+            throw std::runtime_error("Unable to run inference.");
+        }
+        output = auxiliar_output_pointer_gpu;
+    }
+    else{
+        bool succ = engine->runInference(input, auxiliar_output_pointer_cpu, from_device, to_device);
+        if (!succ) {
+            throw std::runtime_error("Unable to run inference.");
+        }
+        output = auxiliar_output_pointer_cpu;
+    }
+}
+// Runs inference considering that the input is general, which can be in CPU (from_device=false) or GPU (from_device=true), and the output has 1 variable, in the CPU (to_device=false) or the GPU (to_device=true)
+void NNHandler::run_inference(const std::vector<std::vector<float *>> &input, std::vector<float *> &output, bool from_device, bool to_device){
+    assert(input.size() == n_inputs && input[0].size() == batch_size && n_outputs==1);
+    if (to_device){
+        run_inference(input, auxiliar_output_pointer_gpu, from_device, to_device);
+        output = auxiliar_output_pointer_gpu[0];
+    }
+    else{
+        run_inference(input, auxiliar_output_pointer_cpu, from_device, to_device);
+        output = auxiliar_output_pointer_cpu[0];
+    }
+}
+// Runs inference considering that the input is general, which can be in CPU (from_device=false) or GPU (from_device=true), and the output has 1 variable and batch 1, in the CPU (to_device=false) or the GPU (to_device=true)
+void NNHandler::run_inference(const std::vector<std::vector<float *>> &input, float * &output, bool from_device, bool to_device){
+    assert(input.size() == n_inputs && input[0].size() == batch_size && n_outputs==1 && batch_size==1);
+    if (to_device){
+        run_inference(input, auxiliar_output_pointer_gpu, from_device, to_device);
+        output = auxiliar_output_pointer_gpu[0][0];
+    }
+    else{
+        run_inference(input, auxiliar_output_pointer_cpu, from_device, to_device);
+        output = auxiliar_output_pointer_cpu[0][0];
+    }
+}
+// Runs inference considering that the input has 1 variable, which can be in CPU (from_device=false) or GPU (from_device=true), and the output is general, in the CPU (to_device=false) or the GPU (to_device=true)
+void NNHandler::run_inference(const std::vector<float *> &input, std::vector<std::vector<float *>> &output, bool from_device, bool to_device){
+    assert(n_inputs==1 && input.size() == batch_size);
+    for (int i=0; i<input.size(); i++){
+        auxiliar_input_pointer[0][i] = input[i];
+    }
+    run_inference(auxiliar_input_pointer, output, from_device, to_device);
+}
+// Runs inference considering that the input has 1 variable, which can be in CPU (from_device=false) or GPU (from_device=true), and the output has 1 variable, in the CPU (to_device=false) or the GPU (to_device=true)
+void NNHandler::run_inference(const std::vector<float *> &input, std::vector<float *> &output, bool from_device, bool to_device){
+    assert(n_inputs==1 && input.size() == batch_size && n_outputs==1);
+    if (to_device){
+        run_inference(input, auxiliar_output_pointer_gpu, from_device, to_device);
+        output = auxiliar_output_pointer_gpu[0];
+    }
+    else{
+        run_inference(input, auxiliar_output_pointer_cpu, from_device, to_device);
+        output = auxiliar_output_pointer_cpu[0];
+    }
+}
+// Runs inference considering that the input has 1 variable, which can be in CPU (from_device=false) or GPU (from_device=true), and the output has 1 variable and batch 1, in the CPU (to_device=false) or the GPU (to_device=true)
+void NNHandler::run_inference(const std::vector<float *> &input, float * &output, bool from_device, bool to_device){
+    assert(n_inputs==1 && input.size() == batch_size && n_outputs==1 && batch_size==1);
+    if (to_device){
+        run_inference(input, auxiliar_output_pointer_gpu, from_device, to_device);
+        output = auxiliar_output_pointer_gpu[0][0];
+    }
+    else{
+        run_inference(input, auxiliar_output_pointer_cpu, from_device, to_device);
+        output = auxiliar_output_pointer_cpu[0][0];
+    }
+}
+
+// Runs inference considering that the input has 1 variable and 1 batch, which can be in CPU (from_device=false) or GPU (from_device=true), and the output is general, in the CPU (to_device=false) or the GPU (to_device=true)
+void NNHandler::run_inference(const float * input, std::vector<std::vector<float *>> &output, bool from_device, bool to_device){
+    assert(n_inputs==1 && batch_size == 1);
+    auxiliar_input_pointer[0][0] = const_cast<float *>(input);
+    run_inference(auxiliar_input_pointer, output, from_device, to_device);
+}
+// Runs inference considering that the input has 1 variable and 1 batch, which can be in CPU (from_device=false) or GPU (from_device=true), and the output has 1 variable, in the CPU (to_device=false) or the GPU (to_device=true)
+void NNHandler::run_inference(const float * input, std::vector<float *> &output, bool from_device, bool to_device){
+    assert(n_inputs==1 && batch_size == 1 && n_outputs==1);
+    if (to_device){
+        run_inference(input, auxiliar_output_pointer_gpu, from_device, to_device);
+        output = auxiliar_output_pointer_gpu[0];
+    }
+    else{
+        run_inference(input, auxiliar_output_pointer_cpu, from_device, to_device);
+        output = auxiliar_output_pointer_cpu[0];
+    }
+}
+//Runs inference considering that the input has 1 variable and 1 batch, which can be in CPU (from_device=false) or GPU (from_device=true), and the output has 1 variable and batch 1, in the CPU (to_device=false) or the GPU (to_device=true)
+void NNHandler::run_inference(const float * input, float * &output, bool from_device, bool to_device){
+    assert(n_inputs==1 && n_outputs==1 && batch_size==1);
+    if (to_device){
+        run_inference(input, auxiliar_output_pointer_gpu, from_device, to_device);
+        output = auxiliar_output_pointer_gpu[0][0];
+    }
+    else{
+        run_inference(input, auxiliar_output_pointer_cpu, from_device, to_device);
+        output = auxiliar_output_pointer_cpu[0][0];
+    }
+}
 
 
+// Runs inference considering that the input is general (on CPU), and the output is general, in the CPU (to_device=false) or the GPU (to_device=true)
+void NNHandler::run_inference(const std::vector<std::vector<std::vector<float>>> &input, std::vector<std::vector<float *>> &output, bool to_device){
+    assert(input.size() == n_inputs && input[0].size() == batch_size);
+    if (to_device){
+        bool succ = engine->runInference(input, auxiliar_output_pointer_gpu, to_device);
+        if (!succ) {
+            throw std::runtime_error("Unable to run inference.");
+        }
+        output = auxiliar_output_pointer_gpu;
+    }
+    else{
+        bool succ = engine->runInference(input, auxiliar_output_pointer_cpu, to_device);
+        if (!succ) {
+            throw std::runtime_error("Unable to run inference.");
+        }
+        output = auxiliar_output_pointer_cpu;
+    }
+}
+// Runs inference considering that the input is general (on CPU), and the output has 1 variable, in the CPU (to_device=false) or the GPU (to_device=true)
+void NNHandler::run_inference(const std::vector<std::vector<std::vector<float>>> &input, std::vector<float *> &output, bool to_device){
+    assert(input.size() == n_inputs && input[0].size() == batch_size && n_outputs==1);
+    if (to_device){
+        run_inference(input, auxiliar_output_pointer_gpu, to_device);
+        output = auxiliar_output_pointer_gpu[0];
+    }
+    else{
+        run_inference(input, auxiliar_output_pointer_cpu, to_device);
+        output = auxiliar_output_pointer_cpu[0];
+    }
+}
+// Runs inference considering that the input is general (on CPU), and the output has 1 variable and batch 1, in the CPU (to_device=false) or the GPU (to_device=true)
+void NNHandler::run_inference(const std::vector<std::vector<std::vector<float>>> &input, float * &output, bool to_device){
+    assert(input.size() == n_inputs && input[0].size() == batch_size && n_outputs==1 && batch_size==1);
+    if (to_device){
+        run_inference(input, auxiliar_output_pointer_gpu, to_device);
+        output = auxiliar_output_pointer_gpu[0][0];
+    }
+    else{
+        run_inference(input, auxiliar_output_pointer_cpu, to_device);
+        output = auxiliar_output_pointer_cpu[0][0];
+    }
+}
+// Runs inference considering that the input has 1 variable (on CPU), and the output is general, in the CPU (to_device=false) or the GPU (to_device=true)
+void NNHandler::run_inference(const std::vector<std::vector<float>> &input, std::vector<std::vector<float *>> &output, bool to_device){
+    assert(n_inputs==1 && input.size() == batch_size);
+    for (int i=0; i<input.size(); i++){
+        auxiliar_input_vector[0][i] = input[i];
+    }
+    run_inference(auxiliar_input_vector, output, to_device);
+}
+// Runs inference considering that the input has 1 variable (on CPU) and the output has 1 variable, in the CPU (to_device=false) or the GPU (to_device=true)
+void NNHandler::run_inference(const std::vector<std::vector<float>> &input, std::vector<float *> &output, bool to_device){
+    assert(n_inputs==1 && input.size() == batch_size && n_outputs==1);
+    if (to_device){
+        run_inference(input, auxiliar_output_pointer_gpu, to_device);
+        output = auxiliar_output_pointer_gpu[0];
+    }
+    else{
+        run_inference(input, auxiliar_output_pointer_cpu, to_device);
+        output = auxiliar_output_pointer_cpu[0];
+    }
+}
+// Runs inference considering that the input has 1 variable (on CPU), and the output has 1 variable and batch 1, in the CPU (to_device=false) or the GPU (to_device=true)
+void NNHandler::run_inference(const std::vector<std::vector<float>> &input, float * &output, bool to_device){
+    assert(n_inputs==1 && input.size() == batch_size && n_outputs==1 && batch_size==1);
+    if (to_device){
+        run_inference(input, auxiliar_output_pointer_gpu, to_device);
+        output = auxiliar_output_pointer_gpu[0][0];
+    }
+    else{
+        run_inference(input, auxiliar_output_pointer_cpu, to_device);
+        output = auxiliar_output_pointer_cpu[0][0];
+    }
+}
+// Runs inference considering that the input has 1 variable and 1 batch (on CPU), and the output is general, in the CPU (to_device=false) or the GPU (to_device=true)
+void NNHandler::run_inference(const std::vector<float> &input, std::vector<std::vector<float *>> &output, bool to_device){
+    assert(n_inputs==1 && batch_size == 1);
+    auxiliar_input_vector[0][0] = input;
+    run_inference(auxiliar_input_vector, output, to_device);
+}
+// Runs inference considering that the input has 1 variable and 1 batch (on CPU), and the output has 1 variable, in the CPU (to_device=false) or the GPU (to_device=true)
+void NNHandler::run_inference(const std::vector<float> &input, std::vector<float *> &output, bool to_device){
+    assert(n_inputs==1 && batch_size == 1 && n_outputs==1);
+    if (to_device){
+        run_inference(input, auxiliar_output_pointer_gpu, to_device);
+        output = auxiliar_output_pointer_gpu[0];
+    }
+    else{
+        run_inference(input, auxiliar_output_pointer_cpu, to_device);
+        output = auxiliar_output_pointer_cpu[0];
+    }
+}
+// Runs inference considering that the input has 1 variable and 1 batch (on CPU), and the output has 1 variable and batch 1, in the CPU (to_device=false) or the GPU (to_device=true)
+void NNHandler::run_inference(const std::vector<float> &input, float * &output, bool to_device){
+    assert(n_inputs==1 && n_outputs==1 && batch_size==1);
+    if (to_device){
+        run_inference(input, auxiliar_output_pointer_gpu, to_device);
+        output = auxiliar_output_pointer_gpu[0][0];
+    }
+    else{
+        run_inference(input, auxiliar_output_pointer_cpu, to_device);
+        output = auxiliar_output_pointer_cpu[0][0];
+    }
+}
 
 // Prints the data of the handler related to inputs and outputs and their dimensions
 void NNHandler::print_data(){

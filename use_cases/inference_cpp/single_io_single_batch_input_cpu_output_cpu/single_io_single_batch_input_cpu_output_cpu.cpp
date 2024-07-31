@@ -9,9 +9,9 @@
 
 // PARAMETERS
 /** \brief Number of inferences for warmup */
-constexpr int n_inferences_warmup = 10;
+constexpr int n_inferences_warmup = 100;
 /** \brief Number of inferences to calculate the average time */
-constexpr int n_inferences = 100;
+constexpr int n_inferences = 1000;
 /** \brief Path of the ONNX model*/
 const std::string path_model_onnx = "../../models/single_io/model_single_batch.onnx";
 /** \brief Path to save the TensorRT engine for inference*/

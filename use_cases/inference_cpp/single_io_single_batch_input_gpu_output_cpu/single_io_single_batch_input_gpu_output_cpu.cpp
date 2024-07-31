@@ -9,9 +9,9 @@
 
 // PARAMETERS
 /** \brief Number of inferences for warmup */
-constexpr int n_inferences_warmup = 10;
+constexpr int n_inferences_warmup = 100;
 /** \brief Number of inferences to calculate the average time */
-constexpr int n_inferences = 100;
+constexpr int n_inferences = 1000;
 /** \brief Path of the ONNX model*/
 const std::string path_model_onnx = "../../models/single_io/model_single_batch.onnx";
 /** \brief Path to save the TensorRT engine for inference*/
@@ -47,25 +47,25 @@ int main(){
     std::vector<float> output_gt = output_gt_file[0];
 
     // This CUDA pointer will have the data on the GPU
-    float * d_input;
+    float * input_gpu;
 
     // Now, we copy the data to the cuda pointer
-    checkCuda(cudaMalloc((void**)&d_input, sizeof(float)*input.size()));
-    checkCuda(cudaMemcpy(d_input, input.data(), sizeof(float)*input.size(),cudaMemcpyHostToDevice));
+    checkCuda(cudaMalloc((void**)&input_gpu, sizeof(float)*input.size()));
+    checkCuda(cudaMemcpy(input_gpu, input.data(), sizeof(float)*input.size(),cudaMemcpyHostToDevice));
 
     // Predicted output
     std::vector<float> output_pred;
     
     // Perform WARMUP inference (only with the first batch)
     for (int i=0; i< n_inferences_warmup; i++){
-        nn_handler.run_inference(d_input, output_pred, true);
+        nn_handler.run_inference(input_gpu, output_pred, true);
     }
     
     // Get the current time before inference
     auto start = std::chrono::high_resolution_clock::now();
     // Measure time of inference
     for (int i=0; i<n_inferences; i++){
-        nn_handler.run_inference(d_input, output_pred, true);
+        nn_handler.run_inference(input_gpu, output_pred, true);
     }
     // Get the current time after inference
     auto end = std::chrono::high_resolution_clock::now();
@@ -89,7 +89,7 @@ int main(){
     std::cout << "Mean square error: " << calculate_mae(output_gt, output_pred, 10) << std::endl;
 
     // Free the pointer
-    checkCuda(cudaFree(d_input));
+    checkCuda(cudaFree(input_gpu));
 
     return 0;
 }

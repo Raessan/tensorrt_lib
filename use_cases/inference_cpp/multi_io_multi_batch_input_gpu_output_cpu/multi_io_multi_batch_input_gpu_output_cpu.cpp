@@ -9,9 +9,9 @@
 
 // PARAMETERS
 /** \brief Number of inferences for warmup */
-constexpr int n_inferences_warmup = 10;
+constexpr int n_inferences_warmup = 100;
 /** \brief Number of inferences to calculate the average time */
-constexpr int n_inferences = 100;
+constexpr int n_inferences = 1000;
 /** \brief Path of the ONNX model*/
 const std::string path_model_onnx = "../../models/multi_io/model_multi_batch.onnx";
 /** \brief Path to save the TensorRT engine for inference*/
@@ -47,32 +47,37 @@ int main(){
     std::vector<std::vector<float>> output2_gt = read_file(output2_path, batch_size);
 
     // This is the vector that will contain the info of all inputs
-    std::vector<std::vector<std::vector<float>>> input;
+    std::vector<std::vector<float *>> input_gpu;
+
     // We have to resize it to contain all the data
-    input.resize(3);
+    input_gpu.resize(3);
     for (int i=0; i<3; i++){
-        input[i].resize(batch_size);
+        input_gpu[i].resize(batch_size);
     }
-    // Now, fill the data
+    // Now, we allocate data on the GPU and fill there the data
     for (int i=0; i<batch_size; i++){
-        input[0][i] = input1[i];
-        input[1][i] = input2[i];
-        input[2][i] = input3[i];
+        checkCuda(cudaMalloc((void**)&input_gpu[0][i], sizeof(float)*input1[i].size()));
+        checkCuda(cudaMalloc((void**)&input_gpu[1][i], sizeof(float)*input2[i].size()));
+        checkCuda(cudaMalloc((void**)&input_gpu[2][i], sizeof(float)*input3[i].size()));
+        checkCuda(cudaMemcpy(input_gpu[0][i], input1[i].data(), sizeof(float)*input1[i].size(),cudaMemcpyHostToDevice));
+        checkCuda(cudaMemcpy(input_gpu[1][i], input2[i].data(), sizeof(float)*input2[i].size(),cudaMemcpyHostToDevice));
+        checkCuda(cudaMemcpy(input_gpu[2][i], input3[i].data(), sizeof(float)*input3[i].size(),cudaMemcpyHostToDevice));
     }
     
+
     // Predicted output
     std::vector<std::vector<std::vector<float>>> output_pred;
     
     // Perform WARMUP inference (only with the first batch)
     for (int i=0; i< n_inferences_warmup; i++){
-        nn_handler.run_inference(input, output_pred);
+        nn_handler.run_inference(input_gpu, output_pred, true);
     }
     
     // Get the current time before inference
     auto start = std::chrono::high_resolution_clock::now();
     // Measure time of inference
     for (int i=0; i<n_inferences; i++){
-        nn_handler.run_inference(input, output_pred);
+        nn_handler.run_inference(input_gpu, output_pred, true);
     }
     // Get the current time after inference
     auto end = std::chrono::high_resolution_clock::now();
@@ -115,6 +120,13 @@ int main(){
 
     std::cout << "Mean square error output 1: " << calculate_mae(output1_gt, output_pred[0], 10) << std::endl;
     std::cout << "Mean square error output 2: " << calculate_mae(output2_gt, output_pred[1], 5) << std::endl;
+
+    // Free all the CUDA pointers
+    for (int i=0; i<input_gpu.size(); i++){
+        for (int j=0; j<input_gpu[0].size(); j++){
+            checkCuda(cudaFree(input_gpu[i][j]));
+        }
+    }
 
     return 0;
 }

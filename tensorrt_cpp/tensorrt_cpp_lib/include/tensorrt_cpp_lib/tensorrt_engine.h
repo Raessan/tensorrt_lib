@@ -86,6 +86,14 @@ public:
     // Runs inference considering that the input is stored in a doublevector of pointers, which can be in CPU (from_device=false) or GPU (from_device=true), and the output is general [n_outputs, batch_size, output_dims]
     // The first dimension of the inputs is the number of inputs, the second is the batch size, and pointer has a valid range equal to the dimensionality of the input
     bool runInference(const std::vector<std::vector<float *>> &inputs, std::vector<std::vector<std::vector<float>>>& outputs, bool from_device);
+    // Run inference with the triple vector input with dims: [n_inputs/n_outputs, batch_size, input_dims]. input_dims is the product of all remaining dims of input
+    // The outputs will be stored in a double vector of pointers, which can be in CPU (to_device=false) or GPU (to_device=true)
+    // The first dimension of the output is the number of outputs, the second is the batch size, and pointer has a valid range equal to the dimensionality of the output
+    bool runInference(const std::vector<std::vector<std::vector<float>>> &inputs, std::vector<std::vector<float *>> & outputs, bool to_device);
+    // Runs inference considering that the input is stored in a double vector of pointers, which can be in CPU (from_device=false) or GPU (from_device=true)
+    // The outputs will also be stored in a double vector of pointers, which can be in CPU (to_device=false) or GPU (to_device=true)
+    // The first dimension of the inputs and outputs is the number of inputs/outputs, the second is the batch size, and pointer has a valid range equal to the dimensionality of the input/output
+    bool runInference(const std::vector<std::vector<float *>> &inputs, std::vector<std::vector<float *>> & outputs, bool from_device, bool to_device);
     
     // bool runInference(const float * input, float * output, bool from_device=false);
 

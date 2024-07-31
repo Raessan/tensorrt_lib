@@ -39,7 +39,7 @@ std::vector<std::vector<float>> read_file(const std::string& filename, int num_l
     return result;
 }
 
-// Function to calculate MAE for two arrays of floats
+// Function to calculate MAE for two vectors of floats
 float calculate_mae(std::vector<float> matrix1, std::vector<float> matrix2, size_t size) {
     float mae = 0.0f;
 
@@ -52,6 +52,31 @@ float calculate_mae(std::vector<float> matrix1, std::vector<float> matrix2, size
 
 // Function to calculate MAE for two std::vector<std::vector<float>> arrays
 float calculate_mae(const std::vector<std::vector<float>>& matrix1, const std::vector<std::vector<float>>& matrix2, size_t size) {
+    float mae = 0.0f;
+    size_t numRows = matrix1.size();
+
+    for (size_t row = 0; row < numRows; ++row) {
+        for (size_t col = 0; col < size; ++col) {
+            mae += std::abs(matrix1[row][col] - matrix2[row][col]);
+        }
+    }
+
+    return mae / (numRows * size);
+}
+
+// Function to calculate MAE for one vector of floats and one array of floats
+float calculate_mae(std::vector<float> matrix1, float * matrix2, size_t size) {
+    float mae = 0.0f;
+
+    for (size_t i = 0; i < size; ++i) {
+        mae += std::abs(matrix1[i] - matrix2[i]);
+    }
+
+    return mae / size;
+}
+
+// Function to calculate MAE for one std::vector<std::vector<float>> and one std::vector<float *>
+float calculate_mae(const std::vector<std::vector<float>>& matrix1, const std::vector<float *>& matrix2, size_t size) {
     float mae = 0.0f;
     size_t numRows = matrix1.size();
 

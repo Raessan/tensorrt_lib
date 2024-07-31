@@ -27,6 +27,8 @@ class NNHandler{
         */
         NNHandler(std::string file_path_onnx, std::string file_path_destination, Precision p=Precision::FP16, int dla_core = -1, int device_index=0, int batch_size=1);
 
+        ~NNHandler();
+
         /**
          * @brief Runs inference. Most general case, valid for any number of inputs and outputs
          * @param input Triple vector of float pointer with the input of the NN, in order: [n_inputs, batch_size, input_dims]. input_dims is the product of all remaining dims of input. Example: if the input is an image, input_dims = C*H*W
@@ -88,21 +90,21 @@ class NNHandler{
          * @brief Runs inference considering that the input is general, which can be in CPU (from_device=false) or GPU (from_device=true), and the output is general
          * @param input Double vector of input pointers. The dimensions are [n_inputs, batch_size, input_dims]
          * @param output Triple vector of float with the output of the NN, in order: [n_outputs, batch_size, output_dims]
-         * @param from_device If true, the input is provided on the GPU. If false, it is provided on the GPU
+         * @param from_device If true, the input is provided on the GPU. If false, it is provided on the CPU
         */
         void run_inference(const std::vector<std::vector<float *>> &input, std::vector<std::vector<std::vector<float>>> &output, bool from_device);
         /**
          * @brief Runs inference considering that the input is general, which can be in CPU (from_device=false) or GPU (from_device=true), and the output has 1 variable
          * @param input Double vector of input pointers. The dimensions are [n_inputs, batch_size, input_dims]
          * @param output Double vector of float with the output of the NN, only valid if n_outputs = 1. The dimensions are [batch_size, output_dims]
-         * @param from_device If true, the input is provided on the GPU. If false, it is provided on the GPU
+         * @param from_device If true, the input is provided on the GPU. If false, it is provided on the CPU
         */
         void run_inference(const std::vector<std::vector<float *>> &input, std::vector<std::vector<float>> &output, bool from_device);
         /**
          * @brief Runs inference considering that the input is general, which can be in CPU (from_device=false) or GPU (from_device=true), and the output has 1 variable and 1 batch
          * @param input Double vector of input pointers. The dimensions are [n_inputs, batch_size, input_dims]
          * @param output Vector of float with the output of the NN, only valid if n_outputs = 1 and batch_size = 1. The length of the vector is "output_dims"
-         * @param from_device If true, the input is provided on the GPU. If false, it is provided on the GPU
+         * @param from_device If true, the input is provided on the GPU. If false, it is provided on the CPU
         */
         void run_inference(const std::vector<std::vector<float *>> &input, std::vector<float> &output, bool from_device);
 
@@ -110,21 +112,21 @@ class NNHandler{
          * @brief Runs inference considering that the input has 1 variable, which can be in CPU (from_device=false) or GPU (from_device=true), and the output is general
          * @param input Input vector of pointers, only valid if n_inputs = 1. The dimensions are [batch_size, input_dims]
          * @param output Triple vector of float with the output of the NN, in order: [n_outputs, batch_size, output_dims]
-         * @param from_device If true, the input is provided on the GPU. If false, it is provided on the GPU
+         * @param from_device If true, the input is provided on the GPU. If false, it is provided on the CPU
         */
         void run_inference(const std::vector<float *> &input, std::vector<std::vector<std::vector<float>>> &output, bool from_device);
         /**
          * @brief Runs inference considering that the input has 1 variable, which can be in CPU (from_device=false) or GPU (from_device=true), and the output has 1 variable
          * @param input Input vector of pointers, only valid if n_inputs = 1. The dimensions are [batch_size, input_dims]
          * @param output Double vector of float with the output of the NN, only valid if n_outputs = 1. The dimensions are [batch_size, output_dims]
-         * @param from_device If true, the input is provided on the GPU. If false, it is provided on the GPU
+         * @param from_device If true, the input is provided on the GPU. If false, it is provided on the CPU
         */
         void run_inference(const std::vector<float *> &input, std::vector<std::vector<float>> &output, bool from_device);
         /**
          * @brief Runs inference considering that the input has 1 variable, which can be in CPU (from_device=false) or GPU (from_device=true), and the output has 1 variable and 1 batch
          * @param input Input vector of pointers, only valid if n_inputs = 1. The dimensions are [batch_size, input_dims]
          * @param output Vector of float with the output of the NN, only valid if n_outputs = 1 and batch_size = 1. The length of the vector is "output_dims"
-         * @param from_device If true, the input is provided on the GPU. If false, it is provided on the GPU
+         * @param from_device If true, the input is provided on the GPU. If false, it is provided on the CPU
         */
         void run_inference(const std::vector<float *> &input, std::vector<float> &output, bool from_device);
 
@@ -132,24 +134,164 @@ class NNHandler{
          * @brief Runs inference considering that the input has 1 variable and 1 batch, which can be in CPU (from_device=false) or GPU (from_device=true), and the output is general
          * @param input Input pointer, only valid if n_inputs = 1 and batch_size = 1. The valid range of the pointer is "input_dims"
          * @param output Triple vector of float with the output of the NN, in order: [n_outputs, batch_size, output_dims]
-         * @param from_device If true, the input is provided on the GPU. If false, it is provided on the GPU
+         * @param from_device If true, the input is provided on the GPU. If false, it is provided on the CPU
         */
         void run_inference(const float * input, std::vector<std::vector<std::vector<float>>> &output, bool from_device);
         /**
          * @brief Runs inference considering that the input has 1 variable and 1 batch, which can be in CPU (from_device=false) or GPU (from_device=true), and the output has 1 variable
          * @param input Input pointer, only valid if n_inputs = 1 and batch_size = 1. The valid range of the pointer is "input_dims"
          * @param output Double vector of float with the output of the NN, only valid if n_outputs = 1. The dimensions are [batch_size, output_dims]
-         * @param from_device If true, the input is provided on the GPU. If false, it is provided on the GPU
+         * @param from_device If true, the input is provided on the GPU. If false, it is provided on the CPU
         */
         void run_inference(const float * input, std::vector<std::vector<float>> &output, bool from_device);
         /**
          * @brief Runs inference considering that the input has 1 variable and 1 batch, which can be in CPU (from_device=false) or GPU (from_device=true), and the output has 1 variable and 1 batch
          * @param input Input pointer, only valid if n_inputs = 1 and batch_size = 1. The valid range of the pointer is "input_dims"
          * @param output Vector of float with the output of the NN, only valid if n_outputs = 1 and batch_size = 1. The length of the vector is "output_dims"
-         * @param from_device If true, the input is provided on the GPU. If false, it is provided on the GPU
+         * @param from_device If true, the input is provided on the GPU. If false, it is provided on the CPU
         */
         void run_inference(const float * input, std::vector<float> &output, bool from_device);
 
+        /**
+         * @brief Runs inference considering that the input is general, which can be in CPU (from_device=false) or GPU (from_device=true), and the output is general, in the CPU (to_device=false) or the GPU (to_device=true)
+         * @param input Double vector of pointers. The dimensions are [n_inputs, batch_size, input_dims]
+         * @param output Double vector of pointers. The dimensions are [n_outputs, batch_size, input_dims]
+         * @param from_device If true, the input is provided on the GPU. If false, it is provided on the CPU
+         * @param to_device If true, the output will be expressed on the GPU. If false, it is provided on the CPU
+        */
+        void run_inference(const std::vector<std::vector<float *>> &input, std::vector<std::vector<float *>> &output, bool from_device, bool to_device);
+        /**
+         * @brief Runs inference considering that the input is general, which can be in CPU (from_device=false) or GPU (from_device=true), and the output has 1 variable, in the CPU (to_device=false) or the GPU (to_device=true)
+         * @param input Double vector of pointers. The dimensions are [n_inputs, batch_size, input_dims]
+         * @param output Vector of pointers. The dimensions are [batch_size, output_dims]
+         * @param from_device If true, the input is provided on the GPU. If false, it is provided on the CPU
+         * @param to_device If true, the output will be expressed on the GPU. If false, it is provided on the CPU
+        */
+        void run_inference(const std::vector<std::vector<float *>> &input, std::vector<float *> &output, bool from_device, bool to_device);
+        /**
+         * @brief Runs inference considering that the input is general, which can be in CPU (from_device=false) or GPU (from_device=true), and the output has 1 variable and batch 1, in the CPU (to_device=false) or the GPU (to_device=true)
+         * @param input Double vector of pointers. The dimensions are [n_inputs, batch_size, input_dims]
+         * @param output Pointer that points to a range of length output_dims
+         * @param from_device If true, the input is provided on the GPU. If false, it is provided on the CPU
+         * @param to_device If true, the output will be expressed on the GPU. If false, it is provided on the CPU
+        */
+        void run_inference(const std::vector<std::vector<float *>> &input, float * &output, bool from_device, bool to_device);
+
+        /**
+         * @brief Runs inference considering that the input has 1 variable, which can be in CPU (from_device=false) or GPU (from_device=true), and the output is general, in the CPU (to_device=false) or the GPU (to_device=true)
+         * @param input Input vector of pointers, only valid if n_inputs = 1. The dimensions are [batch_size, input_dims]
+         * @param output Double vector of pointers. The dimensions are [n_outputs, batch_size, input_dims]
+         * @param from_device If true, the input is provided on the GPU. If false, it is provided on the CPU
+         * @param to_device If true, the output will be expressed on the GPU. If false, it is provided on the CPU
+        */
+        void run_inference(const std::vector<float *> &input, std::vector<std::vector<float *>> &output, bool from_device, bool to_device);
+        /**
+         * @brief Runs inference considering that the input has 1 variable, which can be in CPU (from_device=false) or GPU (from_device=true), and the output has 1 variable, in the CPU (to_device=false) or the GPU (to_device=true)
+         * @param input Input vector of pointers, only valid if n_inputs = 1. The dimensions are [batch_size, input_dims]
+         * @param output Vector of pointers. The dimensions are [batch_size, output_dims]
+         * @param from_device If true, the input is provided on the GPU. If false, it is provided on the CPU
+         * @param to_device If true, the output will be expressed on the GPU. If false, it is provided on the CPU
+        */
+        void run_inference(const std::vector<float *> &input, std::vector<float *> &output, bool from_device, bool to_device);
+        /**
+         * @brief Runs inference considering that the input has 1 variable, which can be in CPU (from_device=false) or GPU (from_device=true), and the output has 1 variable and batch 1, in the CPU (to_device=false) or the GPU (to_device=true)
+         * @param input Input vector of pointers, only valid if n_inputs = 1. The dimensions are [batch_size, input_dims]
+         * @param output Pointer that points to a range of length output_dims
+         * @param from_device If true, the input is provided on the GPU. If false, it is provided on the CPU
+         * @param to_device If true, the output will be expressed on the GPU. If false, it is provided on the CPU
+        */
+        void run_inference(const std::vector<float *> &input, float * &output, bool from_device, bool to_device);
+
+        /**
+         * @brief Runs inference considering that the input has 1 variable and 1 batch, which can be in CPU (from_device=false) or GPU (from_device=true), and the output is general, in the CPU (to_device=false) or the GPU (to_device=true)
+         * @param input Input pointer, only valid if n_inputs = 1 and batch_size = 1. The valid range of the pointer is "input_dims"
+         * @param output Double vector of pointers. The dimensions are [n_outputs, batch_size, input_dims]
+         * @param from_device If true, the input is provided on the GPU. If false, it is provided on the CPU
+         * @param to_device If true, the output will be expressed on the GPU. If false, it is provided on the CPU
+        */
+        void run_inference(const float * input, std::vector<std::vector<float *>> &output, bool from_device, bool to_device);
+        /**
+         * @brief Runs inference considering that the input has 1 variable and 1 batch, which can be in CPU (from_device=false) or GPU (from_device=true), and the output has 1 variable, in the CPU (to_device=false) or the GPU (to_device=true)
+         * @param input Input pointer, only valid if n_inputs = 1 and batch_size = 1. The valid range of the pointer is "input_dims"
+         * @param output Vector of pointers. The dimensions are [batch_size, output_dims]
+         * @param from_device If true, the input is provided on the GPU. If false, it is provided on the CPU
+         * @param to_device If true, the output will be expressed on the GPU. If false, it is provided on the CPU
+        */
+        void run_inference(const float * input, std::vector<float *> &output, bool from_device, bool to_device);
+        /**
+         * @brief Runs inference considering that the input has 1 variable and 1 batch, which can be in CPU (from_device=false) or GPU (from_device=true), and the output has 1 variable and batch 1, in the CPU (to_device=false) or the GPU (to_device=true)
+         * @param input Input pointer, only valid if n_inputs = 1 and batch_size = 1. The valid range of the pointer is "input_dims"
+         * @param output Pointer that points to a range of length output_dims
+         * @param from_device If true, the input is provided on the GPU. If false, it is provided on the CPU
+         * @param to_device If true, the output will be expressed on the GPU. If false, it is provided on the CPU
+        */
+        void run_inference(const float * input, float * &output, bool from_device, bool to_device);
+
+
+        /**
+         * @brief Runs inference considering that the input is general (on CPU), and the output is general, in the CPU (to_device=false) or the GPU (to_device=true)
+         * @param input Triple vector of float pointer with the input of the NN, in order: [n_inputs, batch_size, input_dims]
+         * @param output Double vector of pointers. The dimensions are [n_outputs, batch_size, input_dims]
+         * @param to_device If true, the output will be expressed on the GPU. If false, it is provided on the CPU
+        */
+        void run_inference(const std::vector<std::vector<std::vector<float>>> &input, std::vector<std::vector<float *>> &output, bool to_device);
+        /**
+         * @brief Runs inference considering that the input is general (on CPU), and the output has 1 variable, in the CPU (to_device=false) or the GPU (to_device=true)
+         * @param input Triple vector of float pointer with the input of the NN, in order: [n_inputs, batch_size, input_dims]
+         * @param output Vector of pointers. The dimensions are [batch_size, output_dims]
+         * @param to_device If true, the output will be expressed on the GPU. If false, it is provided on the CPU
+        */
+        void run_inference(const std::vector<std::vector<std::vector<float>>> &input, std::vector<float *> &output, bool to_device);
+        /**
+         * @brief Runs inference considering that the input is general (on CPU), and the output has 1 variable and batch 1, in the CPU (to_device=false) or the GPU (to_device=true)
+         * @param input Triple vector of float pointer with the input of the NN, in order: [n_inputs, batch_size, input_dims]
+         * @param output Pointer that points to a range of length output_dims
+         * @param to_device If true, the output will be expressed on the GPU. If false, it is provided on the CPU
+        */
+        void run_inference(const std::vector<std::vector<std::vector<float>>> &input, float * &output, bool to_device);
+        /**
+         * @brief Runs inference considering that the input has 1 variable (on CPU), and the output is general, in the CPU (to_device=false) or the GPU (to_device=true)
+         * @param input Double vector of float with the input of the NN, only valid if n_inputs = 1. The dimensions are [batch_size, input_dims]
+         * @param output Double vector of pointers. The dimensions are [n_outputs, batch_size, input_dims]
+         * @param to_device If true, the output will be expressed on the GPU. If false, it is provided on the CPU
+        */
+        void run_inference(const std::vector<std::vector<float>> &input, std::vector<std::vector<float *>> &output, bool to_device);
+        /**
+         * @brief Runs inference considering that the input has 1 variable (on CPU) and the output has 1 variable, in the CPU (to_device=false) or the GPU (to_device=true)
+         * @param input Double vector of float with the input of the NN, only valid if n_inputs = 1. The dimensions are [batch_size, input_dims]
+         * @param output Vector of pointers. The dimensions are [batch_size, output_dims]
+         * @param to_device If true, the output will be expressed on the GPU. If false, it is provided on the CPU
+        */
+        void run_inference(const std::vector<std::vector<float>> &input, std::vector<float *> &output, bool to_device);
+        /**
+         * @brief Runs inference considering that the input has 1 variable (on CPU), and the output has 1 variable and batch 1, in the CPU (to_device=false) or the GPU (to_device=true)
+         * @param input Double vector of float with the input of the NN, only valid if n_inputs = 1. The dimensions are [batch_size, input_dims]
+         * @param output Pointer that points to a range of length output_dims
+         * @param to_device If true, the output will be expressed on the GPU. If false, it is provided on the CPU
+        */
+        void run_inference(const std::vector<std::vector<float>> &input, float * &output, bool to_device);
+        /**
+         * @brief Runs inference considering that the input has 1 variable and 1 batch (on CPU), and the output is general, in the CPU (to_device=false) or the GPU (to_device=true)
+         * @param input Single vector of float with the input of the NN, only valid if n_inputs = 1 and batch_size = 1. The length of the vector is "input_dims"
+         * @param output Double vector of pointers. The dimensions are [n_outputs, batch_size, input_dims]
+         * @param to_device If true, the output will be expressed on the GPU. If false, it is provided on the CPU
+        */
+        void run_inference(const std::vector<float> &input, std::vector<std::vector<float *>> &output, bool to_device);
+        /**
+         * @brief Runs inference considering that the input has 1 variable and 1 batch (on CPU), and the output has 1 variable, in the CPU (to_device=false) or the GPU (to_device=true)
+         * @param input Single vector of float with the input of the NN, only valid if n_inputs = 1 and batch_size = 1. The length of the vector is "input_dims"
+         * @param output Vector of pointers. The dimensions are [batch_size, output_dims]
+         * @param to_device If true, the output will be expressed on the GPU. If false, it is provided on the CPU
+        */
+        void run_inference(const std::vector<float> &input, std::vector<float *> &output, bool to_device);
+        /**
+         * @brief Runs inference considering that the input has 1 variable and 1 batch (on CPU), and the output has 1 variable and batch 1, in the CPU (to_device=false) or the GPU (to_device=true)
+         * @param input Single vector of float with the input of the NN, only valid if n_inputs = 1 and batch_size = 1. The length of the vector is "input_dims"
+         * @param output Pointer that points to a range of length output_dims
+         * @param to_device If true, the output will be expressed on the GPU. If false, it is provided on the CPU
+        */
+        void run_inference(const std::vector<float> &input, float * &output, bool to_device);
+        
 
         /**
          * @brief Returns the number of inputs to the NN
@@ -227,12 +369,17 @@ class NNHandler{
         Options options;
         
 
-        /** \brief Auxiliar output */
-        std::vector<std::vector<std::vector<float>>> auxiliar_output;
+        
         /** \brief Auxiliar input vector */
         std::vector<std::vector<std::vector<float>>> auxiliar_input_vector;
         /** \brief Auxiliar input pointer */
         std::vector<std::vector<float *>> auxiliar_input_pointer;
+        /** \brief Auxiliar output vector */
+        std::vector<std::vector<std::vector<float>>> auxiliar_output_vector;
+        /** \brief Auxiliar output pointer in CPU */
+        std::vector<std::vector<float *>> auxiliar_output_pointer_cpu;
+        /** \brief Auxiliar output pointer in GPU */
+        std::vector<std::vector<float *>> auxiliar_output_pointer_gpu;
         /** \brief Engine of the NN */
         std::shared_ptr<TensorRTEngine> engine;
 
