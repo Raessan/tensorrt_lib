@@ -62,7 +62,7 @@ I have also overloaded the function such that it accepts a (vector of) raw point
 - `std::vector<float *>` indicates that there is a single variable, and the size of the vector corresponds to the batch size. Again the pointer points to an instance of data of that batch.
 - `float *` indicates that there is a single input or output, and also the batch size is 1. So, the pointer directly points to the single instance of data.
 
-Note that, to use this functionality, all the inputs have to be located in the same device (either the GPU or the CPU), and the same for the outputs. But you can have your inputs on the GPU (and set `from_device=true`) while getting the outputs on the CPU (by setting `from_device=false`).
+Note that, to use this functionality, all the inputs have to be located in the same device (either the GPU or the CPU), and the same for the outputs. But you can have your inputs on the GPU (and set `from_device=true`) while getting the outputs on the CPU (by setting `to_device=false`).
 
 Also, you can mix vectors and pointers, being able to pass as input `std::vector<std::vector<std::vector<float>>>` and as output `std::vector<std::vector<float *>>`. In this case, the input will be on the CPU and the output can be chosen with the argument `to_device`.
 
