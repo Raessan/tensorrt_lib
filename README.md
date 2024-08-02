@@ -66,7 +66,7 @@ Note that, to use this functionality, all the inputs have to be located in the s
 
 Also, you can mix vectors and pointers, being able to pass as input `std::vector<std::vector<std::vector<float>>>` and as output `std::vector<std::vector<float *>>`. In this case, the input will be on the CPU and the output can be chosen with the argument `to_device`.
 
-In case of dealing with images, it is important to comment the `blobFromImage` function in the `dnn` package of OpenCV, since it adapts an OpenCV `cv::Mat` image to the format expected by NN.
+In case of dealing with images, it is important to comment the `blobFromImage` function in the `dnn` package of OpenCV, since it adapts an OpenCV `cv::Mat` image to the format expected by NN. For a more involved and real example using this library, check [this repository](https://github.com/Raessan/Radar-camera-fusion)
 
 # USAGE OF LIBRARY FOR PYTHON
 
