@@ -47,6 +47,8 @@ enum class Precision {
     FP32,
     // Half prevision floating point value
     FP16,
+    // Integer of 8 bits
+    INT8
 };
 
 // Options for the network

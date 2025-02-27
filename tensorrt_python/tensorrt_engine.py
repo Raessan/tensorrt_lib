@@ -188,6 +188,10 @@ class TensorRTEngine:
             if not builder.platform_has_fast_fp16:
                 raise Exception("Error: GPU does not support FP16 precision")
             config.set_flag(trt.BuilderFlag.FP16)
+        elif self.options.precision == trt.int8:
+            if not builder.platform_has_fast_int8:
+                raise Exception("Error: GPU does not support INT8 precision")
+            config.set_flag(trt.BuilderFlag.INT8)
 
         # Enabled DLA
         if self.options.dlaCore >= 0:
@@ -340,8 +344,10 @@ class TensorRTEngine:
             engineName += ".fp32"
         elif (self.options.precision == trt.float16):
             engineName += ".fp16"
+        elif (self.options.precision == trt.int8):
+            engineName += ".int8"
         else:
-            raise Exception("Precision has to be float32 or float16")
+            raise Exception("Precision has to be float32 or float16 or int8 (if the model is explicitly quantized)")
         
         # Check if the GPU is allowed, and add its index to the name
         n_gpus = cudart.cudaGetDeviceCount()[1]

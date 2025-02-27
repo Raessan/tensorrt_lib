@@ -158,6 +158,15 @@ bool TensorRTEngine::build(std::string onnxModelPath) {
         config->setFlag(BuilderFlag::kFP16);
     } 
 
+    // Set the precision level
+    if (m_options.precision == Precision::INT8) {
+        // Ensure the GPU supports FP16 inference
+        if (!builder->platformHasFastInt8()) {
+            throw std::runtime_error("Error: GPU does not support INT8 precision");
+        }
+        config->setFlag(BuilderFlag::kINT8);
+    } 
+
     // Enabled DLA
     if (m_options.dlaCore >= 0){
         if (builder->getNbDLACores() == 0)
@@ -710,9 +719,11 @@ std::string TensorRTEngine::serializeEngineOptions(const Options &options, const
         engineName += ".fp16";
     } else if (options.precision == Precision::FP32){
         engineName += ".fp32";
+    } else if (options.precision == Precision::INT8){
+        engineName += ".int8";
     } 
     else{
-        throw std::runtime_error("Error, te precision must be FP16 or FP32!");
+        throw std::runtime_error("Error, the precision must be FP16 or FP32 or INT8!");
     }
 
     // Check if the GPU is allowed, and add its index to the name
