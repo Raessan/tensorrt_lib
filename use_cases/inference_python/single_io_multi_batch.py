@@ -71,12 +71,12 @@ if __name__ == "__main__":
 
     # Warmup inference
     for i in range(n_inferences_warmup):
-        _ = engine.do_inference_v2(inputs)
+        _ = engine.do_inference(inputs)
 
     # Measure inference time
     start_time = time.time()
     for i in range(n_inferences):
-        output_pred = engine.do_inference_v2(inputs)
+        output_pred = engine.do_inference(inputs)
     end_time = time.time()
     avg_inference_time = (end_time - start_time)*1000.0 / n_inferences
     print(f"Average inference time: {avg_inference_time:.6f} miliseconds")

@@ -238,9 +238,6 @@ bool TensorRTEngine::loadNetwork() {
         return false;
     }
 
-    // Add the following line if you encounter the error: Error Code 1: Serialization (Serialization assertion creator failed.Cannot deserialize plugin since corresponding IPluginCreator not found in Plugin Registry)
-    // In this case, also #include "NvInferPlugin.h"
-    bool didInitPlugins = initLibNvInferPlugins(nullptr, "");
     // Create an engine, a representation of the optimized model.
     m_engine = std::unique_ptr<nvinfer1::ICudaEngine>(m_runtime->deserializeCudaEngine(buffer.data(), buffer.size()));
     if (!m_engine) {
@@ -380,7 +377,7 @@ bool TensorRTEngine::runInference(const std::vector<std::vector<std::vector<floa
     outputs.clear();
 
     // Extract data per output and per batch
-    for (int32_t outputBinding = numInputs; outputBinding < m_engine->getNbBindings(); ++outputBinding) {
+    for (int32_t outputBinding = numInputs; outputBinding < m_engine->getNbIOTensors(); ++outputBinding) {
         // Batch
         std::vector<std::vector<float>> batchOutputs{};
         auto outputLenFloat = m_outputLengthsFloat[outputBinding - numInputs];
@@ -483,7 +480,7 @@ bool TensorRTEngine::runInference(const std::vector<std::vector<float *>> &input
     outputs.clear();
 
     // Extract data per output and per batch
-    for (int32_t outputBinding = numInputs; outputBinding < m_engine->getNbBindings(); ++outputBinding) {
+    for (int32_t outputBinding = numInputs; outputBinding < m_engine->getNbIOTensors(); ++outputBinding) {
         // Batch
         std::vector<std::vector<float>> batchOutputs{};
         auto outputLenFloat = m_outputLengthsFloat[outputBinding - numInputs];
@@ -572,7 +569,7 @@ bool TensorRTEngine::runInference(const std::vector<std::vector<std::vector<floa
     }
 
     // Extract data per output and per batch
-    for (int32_t outputBinding = numInputs; outputBinding < m_engine->getNbBindings(); ++outputBinding) {
+    for (int32_t outputBinding = numInputs; outputBinding < m_engine->getNbIOTensors(); ++outputBinding) {
 
         // Batch
         auto outputLenFloat = m_outputLengthsFloat[outputBinding - numInputs];
@@ -675,7 +672,7 @@ bool TensorRTEngine::runInference(const std::vector<std::vector<float *>> &input
     }
 
     // Extract data per output and per batch
-    for (int32_t outputBinding = numInputs; outputBinding < m_engine->getNbBindings(); ++outputBinding) {
+    for (int32_t outputBinding = numInputs; outputBinding < m_engine->getNbIOTensors(); ++outputBinding) {
 
         // Batch
         auto outputLenFloat = m_outputLengthsFloat[outputBinding - numInputs];

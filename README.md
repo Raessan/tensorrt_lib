@@ -90,7 +90,7 @@ engine.loadNetwork()
 ...
 
 # Inference
-output_pred = engine.do_inference_v2(inputs)
+output_pred = engine.do_inference(inputs)
 ```
 
 The only difference is how to represent inputs and outputs. Both are lists, where the number of elements is equal to the number of inputs/outputs. Each member of the list is numpy array that has as first dimension the batch, and the rest of dimensions are the original dimensions of the data (it does not need to be flattened as in the C++ library because it is automatically done).

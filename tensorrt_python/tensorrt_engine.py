@@ -1,6 +1,7 @@
 import tensorrt as trt
 import numpy as np
-from cuda import cuda, cudart
+from cuda.bindings import driver as cuda
+from cuda.bindings import runtime as cudart
 import os.path
 import ctypes
 
@@ -101,8 +102,6 @@ class TensorRTEngine:
         self.inputs = []
         # Output of the NN
         self.outputs = []
-        # These contain the inputs and outputs on the GPU
-        self.bindings = []
         # Configuration profile used to define the inputs and outputs sizes
         self.profile_idx = None
         # Input dimensions, which is a list of shapes. The list has n_input numbers, and the shapes start with the batch dimension
@@ -168,7 +167,7 @@ class TensorRTEngine:
             raise Exception("Error, model needs at least 1 input!");
         input0Batch = network.get_input(0).shape[0]
         for i in range(numInputs):
-            if network.get_input(i).shape[0] is not input0Batch:
+            if network.get_input(i).shape[0] != input0Batch:
                 raise Exception("Error, the model has multiple inputs, each with differing batch sizes!")
         
         # Check to see if the model supports dynamic batch size or not
@@ -176,12 +175,12 @@ class TensorRTEngine:
             print("Model supports dynamic batch size")
         elif input0Batch == 1:
             print("Model only supports fixed batch size of 1")
-            if (self.options.batch_size is not input0Batch):
+            if (self.options.batch_size != input0Batch):
                 raise Exception("Error model only supports a fixed batch size of 1.")
         
         # Create config
         config = builder.create_builder_config()
-        config.max_workspace_size = 1<<30
+        config.set_memory_pool_limit(trt.MemoryPoolType.WORKSPACE, 1 << 30)  # 1 GB
 
         # Set the precision level
         if self.options.precision == trt.float16:
@@ -225,10 +224,18 @@ class TensorRTEngine:
         # Add profile to the config variable      
         config.add_optimization_profile(optProfile)
 
-        # Write the engine to disk
-        self.engine = builder.build_engine(network, config)
-        with open(self.engine_path, 'wb') as f:
-            f.write(self.engine.serialize())
+        # --- Build serialized network ---
+        serialized_engine = builder.build_serialized_network(network, config)
+        if serialized_engine is None:
+            raise RuntimeError("Failed to build serialized network")
+
+        # --- Deserialize to runtime engine ---
+        runtime = trt.Runtime(trt.Logger(trt.Logger.INFO))
+        self.engine = runtime.deserialize_cuda_engine(serialized_engine)
+
+        # Save to disk
+        with open(self.engine_path, "wb") as f:
+            f.write(serialized_engine)
 
     def loadNetwork(self):
         # Set the device index
@@ -264,8 +271,6 @@ class TensorRTEngine:
             
             # Size (in number of elements) to allocate
             size = trt.volume(shape)
-            if self.engine.has_implicit_batch_dimension:
-                size *= self.options.batch_size
             
             # Type of data we will allocate
             if (self.engine.get_tensor_dtype(binding)) == trt.float32:
@@ -282,9 +287,6 @@ class TensorRTEngine:
             # Allocate host and device buffers
             bindingMemory = HostDeviceMem(size, dtype)
 
-            # Append the device buffer to device bindings.
-            self.bindings.append(int(bindingMemory.device))
-
             # Append to the appropriate list.
             if self.engine.get_tensor_mode(binding) == trt.TensorIOMode.INPUT:
                 self.inputs.append(bindingMemory)
@@ -294,6 +296,24 @@ class TensorRTEngine:
                 self.outputs.append(bindingMemory)
                 self.output_dims.append(shape)
                 self.output_names.append(binding)
+
+    def prepare_context(self, inputs_np):
+        """
+        inputs_np: list of numpy arrays for each engine input (same order as self.input_names)
+        Sets runtime shapes (if dynamic) and assigns device pointers for all IO tensors.
+        """
+
+        # 1) Set input shapes (if needed) and device addresses
+        for idx, name in enumerate(self.input_names):
+            shape = tuple(inputs_np[idx].shape)
+            # Set dynamic shape if the context's current shape differs
+            if self.context.get_tensor_shape(name) != shape:
+                self.context.set_input_shape(name, shape)
+            self.context.set_tensor_address(name, int(self.inputs[idx].device))
+
+        # 2) Set output device addresses
+        for idx, name in enumerate(self.output_names):
+            self.context.set_tensor_address(name, int(self.outputs[idx].device))
                 
     def _do_inference_base(self, execute_async):
         # Transfer input data to the GPU.
@@ -309,24 +329,29 @@ class TensorRTEngine:
         # Return only the host outputs.
         return [out.host.reshape(out_shape) for out, out_shape in zip(self.outputs, self.output_dims)]
 
-
-    # This function is generalized for multiple inputs/outputs.
-    # inputs and outputs are expected to be lists of HostDeviceMem objects.
-    def do_inference(self, inputs, batch_size=1):
-        for i in range(len(inputs)):
-            np.copyto(self.inputs[i].host, inputs[i].ravel())
-        def execute_async():
-            self.context.execute_async(batch_size=batch_size, bindings=self.bindings, stream_handle=self.stream)
-        return self._do_inference_base(execute_async)
-
-
     # This function is generalized for multiple inputs/outputs for full dimension networks.
     # inputs and outputs are expected to be lists of HostDeviceMem objects.
-    def do_inference_v2(self, inputs):
+    def do_inference(self, inputs):
+        # Copy input NumPy arrays into pinned host buffers
         for i in range(len(inputs)):
             np.copyto(self.inputs[i].host, inputs[i].ravel())
+
+        # Prepare context (shapes + device pointers)
+        self.prepare_context(inputs_np=inputs)
+
+        # Execute (v3 only takes a stream handle)
         def execute_async():
-            self.context.execute_async_v2(bindings=self.bindings, stream_handle=self.stream)
+            # Convert stream to an integer handle (cuda-python or PyCUDA safe)
+            try:
+                stream_handle = int(self.stream)
+            except TypeError:
+                import ctypes
+                stream_handle = ctypes.cast(self.stream, ctypes.c_void_p).value
+
+            ok = self.context.execute_async_v3(stream_handle)
+            if not ok:
+                raise RuntimeError("execute_async_v3() returned False")
+
         return self._do_inference_base(execute_async)
     
     # This function converts the engine options into a string
