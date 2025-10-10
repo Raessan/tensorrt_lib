@@ -4,6 +4,7 @@ import sys
 import os
 import tensorrt as trt
 import time
+import torch
 
 engine_path = os.path.abspath(os.path.join("..", "..", "tensorrt_python" ))
 sys.path.insert(0, engine_path)
@@ -76,30 +77,39 @@ if __name__ == "__main__":
     output2_gt = output2_gt.reshape(engine.output_dims[1])
 
     # The function expects a list of inputs
-    inputs = [input1, input2, input3]
+    inputs = [torch.from_numpy(input1).to("cuda"),
+              torch.from_numpy(input2).to("cpu"),
+              input3]
 
     # Warmup inference
     for i in range(n_inferences_warmup):
-        _ = engine.do_inference(inputs)
+        _ = engine.do_inference(inputs, out_format = "torch")
 
     # Measure inference time
     start_time = time.time()
     for i in range(n_inferences):
-        output_pred = engine.do_inference(inputs)
+        output_pred = engine.do_inference(inputs, out_format = "torch")
     end_time = time.time()
     avg_inference_time = (end_time - start_time)*1000.0 / n_inferences
     print(f"Average inference time: {avg_inference_time:.6f} miliseconds")
 
     # Show results
+    # Get prediction in numpy format
+    output_pred_1 = output_pred[0]
+    if isinstance(output_pred_1, torch.Tensor):
+        output_pred_1 = output_pred_1.cpu().numpy()
     print("Ground truth output 1:\n", output1_gt)
-    print("Predicted output 1:\n", output_pred[0])
+    print("Predicted output 1:\n", output_pred_1)
 
+    output_pred_2 = output_pred[1]
+    if isinstance(output_pred_2, torch.Tensor):
+        output_pred_2 = output_pred_2.cpu().numpy()
     print("Ground truth output 2:\n", output2_gt)
-    print("Predicted output 2:\n", output_pred[1])
+    print("Predicted output 2:\n", output_pred_2)
 
     # Show errors
-    mae_output1 = np.mean(np.abs(output1_gt - output_pred[0]))
-    mae_output2 = np.mean(np.abs(output2_gt - output_pred[1]))
+    mae_output1 = np.mean(np.abs(output1_gt - output_pred_1))
+    mae_output2 = np.mean(np.abs(output2_gt - output_pred_2))
 
     print("Mean square error 1: ", mae_output1)
     print("Mean square error 2: ", mae_output2)

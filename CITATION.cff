@@ -1,0 +1,8 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: "Escarabajal"
+    given-names: "Rafael J."
+title: "tensorrt_lib"
+date-released: 2025-10-10
+repository-code: "https://github.com/Raessan/tensorrt_lib"

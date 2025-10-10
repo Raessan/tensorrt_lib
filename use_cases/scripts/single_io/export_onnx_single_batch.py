@@ -22,7 +22,7 @@ def export_model():
         input_names=["x"],
         output_names=["y"],
         #dynamic_axes={"x": {0: "batch_size"}, "y": {0: "batch_size"}},
-        opset_version=16,
+        opset_version=17,
         do_constant_folding=True
     )
 

@@ -9,7 +9,7 @@ The idea is to provide minimal code to get the model up and running and be versa
 
 # REQUIREMENTS
 
-These libraries should run in a TensorRT-capable device with GPU and CUDA. The use cases shown here run in an Nvidia Jetson AGX Orin 64GB. In this device, TensorRT is included in the Jetpack software package of NVidia. Refer to the installation: (https://docs.nvidia.com/deeplearning/tensorrt/install-guide/index.html). The version that has been tested is TensorRT 10.9.
+These libraries should run in a TensorRT-capable device with GPU and CUDA. Refer to the installation: (https://docs.nvidia.com/deeplearning/tensorrt/install-guide/index.html). The version that has been tested is TensorRT 10.9.
 
 For Python, we also require to install libnvinfer:
 `sudo apt-get install -y python3-libnvinfer*`
@@ -17,7 +17,7 @@ For Python, we also require to install libnvinfer:
 And also the CUDA library (adapt to your version):
 `pip install cuda-python==12.8.0`
 
-Additionally, you will need `numpy` and `torch` (the latter is only used to generate the models of the use cases).
+Additionally, you will need `numpy` and `torch`.
 
 Also, we use here C++17 because the `filesystem` library requires so. However, this library is only used to get the names of the files in a given folder, so it can be replaced with another function that does the same work, allowing to use C++14.
 
@@ -90,12 +90,16 @@ engine.loadNetwork()
 ...
 
 # Inference
-output_pred = engine.do_inference(inputs)
+output_pred = engine.do_inference(inputs, out_format = "auto") # out_format can be "auto", "numpy" or "torch"
 ```
 
-The only difference is how to represent inputs and outputs. Both are lists, where the number of elements is equal to the number of inputs/outputs. Each member of the list is numpy array that has as first dimension the batch, and the rest of dimensions are the original dimensions of the data (it does not need to be flattened as in the C++ library because it is automatically done).
+The only difference is how to represent inputs and outputs. Both are lists, where the number of elements is equal to the number of inputs/outputs. Each member of the list can either be a numpy array or torch tensor (either in cpu or cuda), and types can be mixed. The tensors have as first dimension the batch, and the rest of dimensions are the original dimensions of the data (it does not need to be flattened as in the C++ library because it is automatically done). Regarding the output format, it can have three values:
 
-In our previous examples with two inputs, where the first has size 3x100x100, the second is 1x200x200 and the batch size is 1, the `inputs` list will be of size 2, where `inputs[0]` is a numpy array of size (1, 3, 100, 100) and the second numpy array is has size (1, 1, 200, 200) (where the first 1 is because of the batch size).
+- "numpy": the output will be a numpy array (in cpu)
+- "torch": the output will be a torch tensor (in cuda)
+- "auto" (default): if all the inputs are numpy arrays or torch tensors in "cpu", the output will be a numpy array. If any of the inputs is a torch tensor in "cuda", the output will also be a torch tensor in "cuda".
+
+In our previous examples with two inputs, where the first has size 3x100x100, the second is 1x200x200 and the batch size is 1, the `inputs` list will be of size 2, where `inputs[0]` is a numpy/torch tensor of size (1, 3, 100, 100) and `inputs[1]` is a numpy/torch tensor with size (1, 1, 200, 200) (where the first 1 is because of the batch size).
 
 This library does not include the CUDA support like C++ since the inputs and outputs are always numpy arrays, and it is more common to work with CUDA in C++.
 

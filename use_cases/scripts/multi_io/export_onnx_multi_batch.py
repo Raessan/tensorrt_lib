@@ -29,7 +29,7 @@ def export_model():
             "y1": {0: "batch_size"},     # Dynamic batch size for output1
             "y2": {0: "batch_size"}      # Dynamic batch size for output2
         },
-        opset_version=16,  # ONNX opset version
+        opset_version=17,  # ONNX opset version
         do_constant_folding=True
     )
 

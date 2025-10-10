@@ -4,6 +4,7 @@ import sys
 import os
 import tensorrt as trt
 import time
+import torch
 
 engine_path = os.path.abspath(os.path.join("..", "..", "tensorrt_python" ))
 sys.path.insert(0, engine_path)
@@ -67,8 +68,9 @@ if __name__ == "__main__":
     input = input.reshape(input_dims)
     output_gt = output_gt.reshape(output_dims)
 
-    # The function expects a list of inputs
-    inputs = [input]
+    # The function expects a list of inputs, either in numpy or torch format
+    # inputs = [input] # Option 1
+    inputs = [torch.from_numpy(input).to("cuda")] # Option 2
 
     # Warmup inference
     for i in range(n_inferences_warmup):
@@ -77,15 +79,20 @@ if __name__ == "__main__":
     # Measure inference time
     start_time = time.time()
     for i in range(n_inferences):
-        output_pred = engine.do_inference(inputs)
+        output_pred = engine.do_inference(inputs, out_format="torch") # Choose output format: numpy (CPU) or torch (GPU) or auto
     end_time = time.time()
     avg_inference_time = (end_time - start_time)*1000.0 / n_inferences
     print(f"Average inference time: {avg_inference_time:.6f} miliseconds")
 
+    # Get prediction in numpy format
+    output_pred = output_pred[0]
+    if isinstance(output_pred, torch.Tensor):
+        output_pred = output_pred.cpu().numpy()
+
     # Show results
     print("Ground truth output:\n", output_gt)
-    print("Predicted output:\n", output_pred[0])
+    print("Predicted output:\n", output_pred)
 
     # Show errors
-    mae_output = np.mean(np.abs(output_gt - output_pred[0]))
+    mae_output = np.mean(np.abs(output_gt - output_pred))
     print("Mean square error: ", mae_output)

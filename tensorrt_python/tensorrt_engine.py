@@ -4,6 +4,7 @@ from cuda.bindings import driver as cuda
 from cuda.bindings import runtime as cudart
 import os.path
 import ctypes
+import torch
 
 # Loggers for errors
 TRT_LOGGER = trt.Logger(trt.Logger.WARNING)
@@ -30,6 +31,24 @@ def cuda_call(call):
         res = res[0]
     return res
 
+def trt_to_torch_dtype(dt: trt.DataType):
+    return {
+        trt.DataType.FLOAT: torch.float32,
+        trt.DataType.HALF:  torch.float16,
+        trt.DataType.INT8:  torch.int8,
+        trt.DataType.INT32: torch.int32,
+        trt.DataType.BOOL:  torch.bool,
+    }[dt]
+
+def np_dtype_from_trt(dt: trt.DataType):
+    return {
+        trt.DataType.FLOAT: np.float32,
+        trt.DataType.HALF:  np.float16,
+        trt.DataType.INT8:  np.int8,
+        trt.DataType.INT32: np.int32,
+        trt.DataType.BOOL:  np.bool_,
+    }[dt]
+
 # Struct with options. All have default valid values except out_file_path, which must be provided
 class Options:
     def __init__(self):
@@ -46,6 +65,7 @@ class HostDeviceMem:
     def __init__(self, size: int, dtype: np.dtype):
         nbytes = size * dtype.itemsize
         host_mem = cuda_call(cudart.cudaMallocHost(nbytes))
+        self._host_ptr = host_mem
         pointer_type = ctypes.POINTER(np.ctypeslib.as_ctypes_type(dtype))
 
         self._host = np.ctypeslib.as_array(ctypes.cast(host_mem, pointer_type), (size,))
@@ -81,8 +101,10 @@ class HostDeviceMem:
 
     # This function frees the memory of host and device
     def free(self):
+        if self.memory_released:
+            return
         cuda_call(cudart.cudaFree(self.device))
-        cuda_call(cudart.cudaFreeHost(self.host.ctypes.data))
+        cuda_call(cudart.cudaFreeHost(self._host_ptr))
         self.memory_released = True
         
 # Main engine class
@@ -119,14 +141,17 @@ class TensorRTEngine:
 
     # Destructor that frees memory
     def __del__(self):
-        # Free memory from declared pointers
-        for mem in self.inputs + self.outputs:
-            if not mem.memory_released:
-                mem.free()
-        # Free stream
-        if self.stream is not None and self.destroyed_stream is False:
-            cuda_call(cudart.cudaStreamDestroy(self.stream))
-            self.destroyed_stream = True
+        try:
+            # Free memory from declared pointers
+            for mem in self.inputs + self.outputs:
+                if not mem.memory_released:
+                    mem.free()
+            # Free stream
+            if self.stream is not None and self.destroyed_stream is False:
+                cuda_call(cudart.cudaStreamDestroy(self.stream))
+                self.destroyed_stream = True
+        except Exception:
+            pass
 
     # Build NN from path
     def build(self, onnxModelPath):
@@ -315,44 +340,90 @@ class TensorRTEngine:
         for idx, name in enumerate(self.output_names):
             self.context.set_tensor_address(name, int(self.outputs[idx].device))
                 
-    def _do_inference_base(self, execute_async):
-        # Transfer input data to the GPU.
+    def do_inference(self, inputs, out_format="auto"):
+        """
+        inputs: list of np.ndarray (CPU) o torch.cuda.Tensor (GPU), in the order of self.input_names
+        out_format: "auto" | "numpy" | "torch"
+        - "auto": if any input is in GPU => "torch", otherwise => "numpy"
+        Returns:
+        - out_format=="numpy": list[np.ndarray] (host)
+        - out_format=="torch": list[torch.cuda.Tensor] (device)
+        """
+
+        # --- decide output format ---
+        if out_format == "auto":
+            any_gpu_in = any(isinstance(x, torch.Tensor) and x.is_cuda for x in inputs)
+            out_format = "torch" if any_gpu_in else "numpy"
+
+        # --- set shapes and bind of inputs ---
+        host_inputs_to_copy = []  # (idx) that need H->D
+        for idx, name in enumerate(self.input_names):
+            x = inputs[idx]
+            # dynamic shape if applicable
+            shape = tuple(x.shape)
+            if self.context.get_tensor_shape(name) != shape:
+                self.context.set_input_shape(name, shape)
+
+            if isinstance(x, torch.Tensor) and x.is_cuda:
+                expected = trt_to_torch_dtype(self.engine.get_tensor_dtype(name))
+                if x.dtype != expected:
+                    x = x.to(device='cuda', dtype=expected, non_blocking=True)
+                x = x.contiguous()
+                self.context.set_tensor_address(name, x.data_ptr()) # zero-copy
+            else:
+                # CPU path: pinned host and then H->D
+                arr = x if isinstance(x, np.ndarray) else np.asarray(x)
+                np.copyto(self.inputs[idx].host, arr.ravel())
+                self.context.set_tensor_address(name, int(self.inputs[idx].device))
+                host_inputs_to_copy.append(idx)
+
+        # --- Prepare output according to format ---
+        outputs_torch = []
+        if out_format == "torch":
+            # Assign CUDA tensors as output buffers (zero-copy)
+            outputs_torch = []
+            self.output_dims = []
+            for name in self.output_names:
+                shape = tuple(self.context.get_tensor_shape(name))
+                tdtype = trt_to_torch_dtype(self.engine.get_tensor_dtype(name))
+                t = torch.empty(shape, dtype=tdtype, device="cuda")
+                self.context.set_tensor_address(name, t.data_ptr())
+                outputs_torch.append(t)
+                self.output_dims.append(shape)
+        else:
+            # "numpy": use HostDeviceMem already created loadNetwork()
+            for idx, name in enumerate(self.output_names):
+                self.context.set_tensor_address(name, int(self.outputs[idx].device))
+
+        # --- execute ---
+        # upload host->device if needed
         kind = cudart.cudaMemcpyKind.cudaMemcpyHostToDevice
-        [cuda_call(cudart.cudaMemcpyAsync(inp.device, inp.host, inp.nbytes, kind, self.stream)) for inp in self.inputs]
-        # Run inference.
-        execute_async()
-        # Transfer predictions back from the GPU.
-        kind = cudart.cudaMemcpyKind.cudaMemcpyDeviceToHost
-        [cuda_call(cudart.cudaMemcpyAsync(out.host, out.device, out.nbytes, kind, self.stream)) for out in self.outputs]
-        # Synchronize the stream
-        cuda_call(cudart.cudaStreamSynchronize(self.stream))
-        # Return only the host outputs.
-        return [out.host.reshape(out_shape) for out, out_shape in zip(self.outputs, self.output_dims)]
+        for i in host_inputs_to_copy:
+            cuda_call(cudart.cudaMemcpyAsync(self.inputs[i].device,
+                                            self.inputs[i].host,
+                                            self.inputs[i].nbytes,
+                                            kind, self.stream))
 
-    # This function is generalized for multiple inputs/outputs for full dimension networks.
-    # inputs and outputs are expected to be lists of HostDeviceMem objects.
-    def do_inference(self, inputs):
-        # Copy input NumPy arrays into pinned host buffers
-        for i in range(len(inputs)):
-            np.copyto(self.inputs[i].host, inputs[i].ravel())
+        # run
+        try:
+            stream_handle = int(self.stream)
+        except TypeError:
+            stream_handle = ctypes.cast(self.stream, ctypes.c_void_p).value
+        ok = self.context.execute_async_v3(stream_handle)
+        if not ok:
+            raise RuntimeError("execute_async_v3() returned False")
 
-        # Prepare context (shapes + device pointers)
-        self.prepare_context(inputs_np=inputs)
-
-        # Execute (v3 only takes a stream handle)
-        def execute_async():
-            # Convert stream to an integer handle (cuda-python or PyCUDA safe)
-            try:
-                stream_handle = int(self.stream)
-            except TypeError:
-                import ctypes
-                stream_handle = ctypes.cast(self.stream, ctypes.c_void_p).value
-
-            ok = self.context.execute_async_v3(stream_handle)
-            if not ok:
-                raise RuntimeError("execute_async_v3() returned False")
-
-        return self._do_inference_base(execute_async)
+        # --- download outputs ---
+        if out_format == "numpy":
+            kind = cudart.cudaMemcpyKind.cudaMemcpyDeviceToHost
+            for out in self.outputs:
+                cuda_call(cudart.cudaMemcpyAsync(out.host, out.device, out.nbytes, kind, self.stream))
+            cuda_call(cudart.cudaStreamSynchronize(self.stream))
+            return [out.host.reshape(shape) for out, shape in zip(self.outputs, self.output_dims)]
+        else:
+            # "torch": the tensors are already in GPU; just synchronize stream
+            cuda_call(cudart.cudaStreamSynchronize(self.stream))
+            return outputs_torch
     
     # This function converts the engine options into a string
     def serializeEngineOptions(self, onnxModelPath):
